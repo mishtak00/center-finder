@@ -18,14 +18,16 @@ class Sky:
         self.ranges = []
         for i in range(3):
             self.ranges.append((min(xyz_list[i]), max(xyz_list[i])))
-        self.bin_space = np.mean([i[1] - i[0] for i in self.ranges])/avg_bins
+        self.bin_space = np.mean([i[1] - i[0] for i in self.ranges]) / avg_bins
 
         # TODO: ceiling
         self.bins = [math.ceil((self.ranges[i][1] - self.ranges[i][0]) / self.bin_space) for i in range(3)]
+        print(self.bins)
         self.grid = np.zeros(self.bins)
 
     def coord_to_grid(self, point):
-        index = np.array([min(self.bins[i]-1, int((point[i] - self.ranges[i][0]) / self.bin_space)) for i in range(3)])
+        index = np.array(
+            [min(self.bins[i] - 1, int((point[i] - self.ranges[i][0]) / self.bin_space)) for i in range(3)])
         index[index < 0] = 0
         return index
 
@@ -36,7 +38,7 @@ class Sky:
 
     def center_finder(self, radius, error=-1):
         if error == -1:
-            error = self.bin_space / 20
+            error = self.bin_space
 
         for point in zip(*self.xyz_list):
             if np.isnan(point).any():
@@ -46,7 +48,9 @@ class Sky:
                 sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
                 self.grid[sphere[0], sphere[1], sphere[2]] += 1
 
-        threshold = self.grid.max()
+        # threshold = self.grid.max() / 2
+        sorted_grid = sorted(self.grid.flatten())
+        threshold = sorted_grid[-5]
         print('threshold: ', threshold)
         ret = np.array(np.where(self.grid >= threshold)).T
         print(len(ret))
@@ -60,10 +64,11 @@ def load_data(filename):
     dec = data[:, 1]
     z = data[:, 2]
     typ = data[:, 3]
-    space = 10
+    space = 1
     ra = ra[::space]
     dec = dec[::space]
     z = z[::space]
+    typ = typ[::space]
     return ra, dec, z, typ
 
 
@@ -150,7 +155,7 @@ def test():
     sky = Sky(sphere)
     bin_space = np.mean([max(col) - min(col) for col in [x, y, z]]) / 100
     print(bin_space)
-    error = bin_space/100
+    error = bin_space / 100
     sph = draw_sphere((-0.575657871781208, -0.4043735011348877, 0.09756173221377211), 0.1,
                       bin_space=bin_space, error=error)
     sph = np.array(sph).T
@@ -187,7 +192,7 @@ def test3():
     ax = Axes3D(plt.gcf())
     print(len(centers))
     for i in centers[:5]:
-        sph = draw_sphere(i, 0.1, sky.bin_space, error=sky.bin_space/5)
+        sph = draw_sphere(i, 0.1, sky.bin_space, error=sky.bin_space / 10)
         sph = np.array(sph).T
         ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05)
     centers = np.array(centers).T
@@ -195,43 +200,38 @@ def test3():
     plt.show()
 
 
-
 def test4():
+    ax = Axes3D(plt.gcf())
     sphere = SkyToSphere(*load_data('SignalN3_easy.txt'))
-    sky = Sky(sphere)
-    max = 0
-    max_centers = []
-    for radius in np.linspace(0.4, 0.7, 5):
-        print('radius: ', radius)
-        centers, threshold = sky.center_finder(radius)
-        print('threshold, length: ', threshold, len(centers))
-        if threshold >= max:
-            max = threshold
-            max_centers = centers
-    print(max_centers)
-    # centers = sky.center_finder(0.105)
+    sky = Sky(sphere, avg_bins=50)
+    sphere = SkyToSphere(*load_data('SignalN3_easy.txt'))
+    print(len(sphere[3]))
     sphere_stack = np.vstack(sphere).T
     print(sphere_stack.shape)
     centers = [point for point in sphere_stack if point[3] == 2]
-    ax = Axes3D(plt.gcf())
-    sphere = SkyToSphere(*load_data('SignalN3_easy.txt'))
-    ax.scatter(xs=sphere[0], ys=sphere[1], zs=sphere[2], alpha=0.1)
+    ax.scatter(xs=sphere[0], ys=sphere[1], zs=sphere[2], color='blue', alpha=0.1)
     print(centers)
-    # for i in centers[:5]:
-    #     sph = draw_sphere(i, 0.045, sky.bin_space, error=sky.bin_space/5)
-    #     sph = np.array(sph).T
-    #     ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05)
     centers = np.array(centers).T
-    ax.scatter(centers[0], centers[1], centers[2], color='r')
+    ax.scatter(centers[0], centers[1], centers[2], color='blue')
+    radius = 0.04
+    print('radius: ', radius)
+    centers, threshold = sky.center_finder(radius)
+    print('centers found: ', centers)
+
+    print('threshold, length: ', threshold, len(centers))
+    for i in centers:
+        sph = draw_sphere(i, radius, sky.bin_space, error=sky.bin_space)
+        sph = np.array(sph).T
+        ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05, color='r')
+        ax.scatter(i[0], i[1], i[2], color='r')
+    # plt.show()
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
-    ax.legend(['rim', 'center'])
+    ax.legend(['rim in data', 'center in data', 'rim found', 'center found'])
     plt.title(r'SignalN3 (easy)')
-    # plt.savefig(osp.join('Figures', 'Figure_1130.png'))
-    # plt.show()
-
-
+    # plt.savefig(osp.join('Figures', 'Figure_1130_1.png'))
+    plt.show()
 
 
 if __name__ == '__main__':
