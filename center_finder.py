@@ -11,7 +11,7 @@ from matplotlib import rc
 
 class Sky:
     def __init__(self, xyz_list, avg_bins=100):
-        if len(xyz_list) == 3:
+        if len(xyz_list) != 0:
             self.xyz_list = xyz_list
         else:
             raise ValueError('List of coordinates has wrong shape')
@@ -50,7 +50,7 @@ class Sky:
         print('threshold: ', threshold)
         ret = np.array(np.where(self.grid >= threshold)).T
         print(len(ret))
-        return [self.grid_to_coord(r) for r in ret]
+        return [self.grid_to_coord(r) for r in ret], threshold
 
 
 def load_data(filename):
@@ -60,7 +60,7 @@ def load_data(filename):
     dec = data[:, 1]
     z = data[:, 2]
     typ = data[:, 3]
-    space = 1
+    space = 10
     ra = ra[::space]
     dec = dec[::space]
     z = z[::space]
@@ -71,7 +71,7 @@ def SphereToSky(x, y, z, degrees=True):
     pass
 
 
-def SkyToSphere(ra, dec, z, degrees=True):
+def SkyToSphere(ra, dec, z, typ=0, degrees=True):
     if degrees:
         ra = np.radians(ra)
         dec = np.radians(dec)
@@ -81,7 +81,7 @@ def SkyToSphere(ra, dec, z, degrees=True):
     y = np.cos(dec) * np.sin(ra) * z
     z = np.sin(dec) * z
     # return np.stack([x,y,z]).T
-    return x, y, z
+    return x, y, z, typ
 
 
 def center_finder_1(x, y, z, radius, bin_space=-1):
@@ -120,7 +120,7 @@ def draw_sphere(point, radius, bin_space, error=-1):
     if error == -1:
         error = bin_space
     diameter_bins = int(radius * 2 / bin_space)
-    x, y, z = point
+    x, y, z = point[:3]
     sphere_coord_x = np.linspace(x - radius, x + radius, diameter_bins)
     sphere_coord_y = np.linspace(y - radius, y + radius, diameter_bins)
     sphere_coord_z = np.linspace(z - radius, z + radius, diameter_bins)
@@ -132,8 +132,8 @@ def draw_sphere(point, radius, bin_space, error=-1):
 
 
 def distance(pointA, pointB):
-    x1, y1, z1 = pointA
-    x2, y2, z2 = pointB
+    x1, y1, z1 = pointA[:3]
+    x2, y2, z2 = pointB[:3]
     return ((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2) ** .5
 
 
@@ -178,5 +178,61 @@ def test2():
     plt.show()
 
 
+def test3():
+    sphere = SkyToSphere(*load_data('SignalN3_easy.txt'))
+    sky = Sky(sphere)
+    sphere_stack = np.vstack(sphere).T
+    print(sphere_stack.shape)
+    centers = [point for point in sphere_stack if point[3] == 2]
+    ax = Axes3D(plt.gcf())
+    print(len(centers))
+    for i in centers[:5]:
+        sph = draw_sphere(i, 0.1, sky.bin_space, error=sky.bin_space/5)
+        sph = np.array(sph).T
+        ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05)
+    centers = np.array(centers).T
+    ax.scatter(centers[0], centers[1], centers[2], color='r')
+    plt.show()
+
+
+
+def test4():
+    sphere = SkyToSphere(*load_data('SignalN3_easy.txt'))
+    sky = Sky(sphere)
+    max = 0
+    max_centers = []
+    for radius in np.linspace(0.4, 0.7, 5):
+        print('radius: ', radius)
+        centers, threshold = sky.center_finder(radius)
+        print('threshold, length: ', threshold, len(centers))
+        if threshold >= max:
+            max = threshold
+            max_centers = centers
+    print(max_centers)
+    # centers = sky.center_finder(0.105)
+    sphere_stack = np.vstack(sphere).T
+    print(sphere_stack.shape)
+    centers = [point for point in sphere_stack if point[3] == 2]
+    ax = Axes3D(plt.gcf())
+    sphere = SkyToSphere(*load_data('SignalN3_easy.txt'))
+    ax.scatter(xs=sphere[0], ys=sphere[1], zs=sphere[2], alpha=0.1)
+    print(centers)
+    # for i in centers[:5]:
+    #     sph = draw_sphere(i, 0.045, sky.bin_space, error=sky.bin_space/5)
+    #     sph = np.array(sph).T
+    #     ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05)
+    centers = np.array(centers).T
+    ax.scatter(centers[0], centers[1], centers[2], color='r')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    ax.legend(['rim', 'center'])
+    plt.title(r'SignalN3 (easy)')
+    # plt.savefig(osp.join('Figures', 'Figure_1130.png'))
+    # plt.show()
+
+
+
+
 if __name__ == '__main__':
-    test2()
+    test4()
