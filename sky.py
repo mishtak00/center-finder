@@ -19,6 +19,9 @@ class Sky:
         print(self.bins)
         self.grid = np.zeros(self.bins)
 
+    def __repr__(self):
+        return 'sky<\n\tranges: \n\t\t' + str(self.ranges) +'\n\tbin space:\n\t\t' + str(self.bin_space) + '\n>'
+
     def coord_to_grid(self, point):
         index = np.array(
             [min(self.bins[i] - 1, int((point[i] - self.ranges[i][0]) / self.bin_space)) for i in range(3)])
@@ -39,17 +42,19 @@ class Sky:
         ret = ret.max(axis=(1, 3, 5))
         return ret
 
-    def center_finder(self, radius, error=-1, center_num=10):
+    def center_finder(self, radius, error=-1, center_num=10, threshold=10):
         if error == -1:
             error = self.bin_space
         for point in zip(*self.xyz_list):
-            sphere = util.draw_sphere(point, radius, self.bin_space, error)
-            sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
-            self.grid[sphere[0], sphere[1], sphere[2]] += 1
+            if np.isnan(point).any():
+                pass
+            else:
+                sphere = util.draw_sphere(point, radius, self.bin_space, error)
+                sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
+                self.grid[sphere[0], sphere[1], sphere[2]] += 1
 
-        sorted_grid = sorted(self.grid.flatten())
-        threshold = sorted_grid[-center_num]
-        blobs = findBlobs(self.grid, scales=range(1, 3), threshold=10)
+        #
+        blobs = findBlobs(self.grid, scales=range(1, 3), threshold=threshold)
         blobs = np.array(blobs)
         print('shape: ', blobs.shape)
 

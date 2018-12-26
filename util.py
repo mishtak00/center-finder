@@ -4,13 +4,12 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 
 
-def load_data(filename):
+def load_data(filename, space=1):
     data = np.genfromtxt(filename, unpack=True).T
     ra = data[:, 0]
     dec = data[:, 1]
     z = data[:, 2]
     typ = data[:, 3]
-    space = 1
     ra = ra[::space]
     dec = dec[::space]
     z = z[::space]
