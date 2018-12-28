@@ -2,6 +2,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from matplotlib import rc
+import pickle
 
 
 def load_data(filename, space=1):
@@ -72,6 +73,7 @@ def distance(pointA, pointB):
     x1, y1, z1 = pointA[:3]
     x2, y2, z2 = pointB[:3]
     return ((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2) ** .5
+    # return np.sum(pointA[:3] - pointB[:3]) ** .5
 
 
 def plot_threshold(matrix, num):
@@ -117,3 +119,15 @@ def sphere_fit(spX, spY, spZ):
     radius = math.sqrt(t)
 
     return radius, [*C[0], C[1], C[2]]
+
+
+def pickle_sky(sky, filename):
+    with open(filename, 'wb') as f:
+        pickle.dump(sky, f)
+    return 0
+
+
+def unpickle_sky(filename):
+    with open(filename, 'rb') as f:
+        sky = pickle.load(f)
+    return sky
