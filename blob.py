@@ -1,14 +1,16 @@
 from numpy import ones, triu, seterr
 from numpy.linalg import norm
 from math import pi
-from scipy.ndimage.filters import gaussian_laplace, minimum_filter
+from scipy.ndimage.filters import gaussian_laplace, minimum_filter, gaussian_filter, median_filter
 
 
 def localMinima(data, threshold):
     from numpy import ones, nonzero, transpose
 
-    if threshold is not None:
+    if isinstance(threshold, int):
         peaks = data < threshold
+    elif isinstance(threshold, str):
+        peaks = data < adaptive_threshold(threshold, data)
     else:
         peaks = ones(data.shape, dtype=data.dtype)
 
@@ -16,7 +18,7 @@ def localMinima(data, threshold):
     return transpose(nonzero(peaks))
 
 
-def blobLOG(data, scales=range(1, 10, 1), threshold=-30):
+def blobLOG(data, threshold, scales=range(1, 10, 1)):
     """Find blobs. Returns [[scale, x, y, ...], ...]"""
     from numpy import empty, asarray
 
@@ -53,10 +55,12 @@ def circleIntersection(r1, r2, d):
                    * (d - r1 + r2) * (d + r1 + r2)) / 2)
 
 
-def findBlobs(img, scales=range(1, 10), threshold=30, max_overlap=0.05):
+def findBlobs(img, scales=range(1, 10), threshold='gaussian', max_overlap=0.05):
     old_errs = seterr(invalid='ignore')
-
-    peaks = blobLOG(img, scales=scales, threshold=-threshold)
+    try:
+        peaks = blobLOG(img, scales=scales, threshold=-threshold)
+    except TypeError:
+        peaks = blobLOG(img, scales=scales, threshold=threshold)
     radii = peaks[:, 0]
     positions = peaks[:, 1:]
 
@@ -88,3 +92,13 @@ def peakEnclosed(peaks, shape, size=1):
     from numpy import asarray
     shape = asarray(shape)
     return (size <= peaks).all(axis=-1) & (size < (shape - peaks)).all(axis=-1)
+
+
+def adaptive_threshold(threshold, data, sigma=5):
+    if threshold == 'gaussian':
+        threshold = gaussian_filter(data, sigma=sigma) - data
+    elif threshold == 'median':
+        threshold = median_filter(size=sigma) 
+    else:
+        raise ValueError('Incorrect threshold type')
+    return threshold
