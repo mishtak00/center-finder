@@ -1,28 +1,46 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+from matplotlib import rc
 from mpl_toolkits.mplot3d import Axes3D
-from blob import findBlobs
+from blob import findBlobs, simple_maxima
 from scipy.stats import norm
 import util
 
 
 class Sky:
-    def __init__(self, xyz_list, avg_bins=100):
-        if len(xyz_list) != 0:
-            self.xyz_list = xyz_list
-            self.points_arr = np.vstack(self.xyz_list).T
-
+    def __init__(self, data_list, avg_bins=100):
+        if len(data_list) > 0:
+            self.data_list = data_list
         else:
-            raise ValueError('List of coordinates has wrong shape')
+            raise ValueError('Data list cannot be empty')
+        self.xyz_list = util.SkyToSphere(*data_list)
+        self.points_arr = np.vstack(self.xyz_list).T
+
+        ''' initialize 3d bins'''
         self.ranges = []
         for i in range(3):
-            self.ranges.append((min(xyz_list[i]), max(xyz_list[i])))
+            self.ranges.append((min(self.xyz_list[i]), max(self.xyz_list[i])))
         self.bin_space = np.mean([i[1] - i[0] for i in self.ranges]) / avg_bins
-        print(self.bin_space)
+        print('binspace: ', self.bin_space)
         self.bins = [math.ceil((self.ranges[i][1] - self.ranges[i][0]) / self.bin_space) for i in range(3)]
-        print(self.bins)
+        print('bins: ',self.bins)
+        print('ranges: ', self.ranges)
         self.grid = np.zeros(self.bins)
+
+        ''' initialize 2d and 1d bins'''
+        avg_bins_2d = 20
+        self.ranges_2d = []
+        for i in range(3):
+            self.ranges_2d.append((min(self.data_list[i]), max(self.data_list[i])))
+        self.bin_space_2d = np.mean([i[1] - i[0] for i in self.ranges_2d]) / avg_bins_2d
+        self.bins_2d = [math.ceil((self.ranges_2d[i][1] - self.ranges_2d[i][0]) / self.bin_space_2d) for i in range(2)]
+        self.bin_space_1d = (np.max(self.data_list[2]) - np.min(self.data_list[2]))/avg_bins_2d
+        self.bins_1d = avg_bins_2d
+        self.grid_2d = np.zeros(self.bins_2d)
+        self.grid_1d = np.zeros(self.bins_1d)
+        print('2d and 1d bins shape: ', self.grid_2d.shape, self.grid_1d.shape)
+        print('2d and 1d bins space: ', self.bin_space_2d, self.bin_space_1d)
 
     def __repr__(self):
         return 'sky<\n\tranges: \n\t\t' + str(self.ranges) +'\n\tbin space:\n\t\t' + str(self.bin_space) + '\n>'
@@ -33,12 +51,28 @@ class Sky:
         index[index < 0] = 0
         return index
 
+    def coord_to_grid_2d(self, point):
+        # print('2d ranges: ', self.ranges_2d)
+        # print('bin spaces: ', self.bin_space_2d, self.bin_space_1d)
+
+        point = util.CartesianToSky(*point)
+        if np.isnan(point).any():
+            #return [0, 0, 0]
+            return None
+        # print(point[2], self.ranges_2d[2][0], self.bin_space_1d)
+        index = [min(self.bins_2d[i] - 1, int((point[i] - self.ranges_2d[i][0]) / self.bin_space_2d)) for i in range(2)]
+        z = min(self.bins_1d - 1, int((point[2] - self.ranges_2d[2][0])/ self.bin_space_1d))
+        index.append(z)
+        index = np.asarray(index)
+        index[index < 0] = 0
+        return index
+
     def grid_to_coord(self, point):
         index = np.array(
             [min(self.ranges[i][1], point[i] * self.bin_space + self.ranges[i][0]) for i in range(3)])
         return index
 
-    def center_finder(self, radius, error=-1, center_num=10, threshold=10):
+    def center_finder(self, radius, error=-1, blob_size=10, threshold=None):
         if error == -1:
             error = self.bin_space
         for point in zip(*self.xyz_list):
@@ -46,29 +80,73 @@ class Sky:
                 pass
             else:
                 sphere = util.draw_sphere(point, radius, self.bin_space, error)
+                sphere_2d = np.array([self.coord_to_grid_2d(p) for p in sphere if self.coord_to_grid_2d(p) is not None]).T
+                #sphere_2d = [p for p in sphere if p is not None]
                 sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
-                self.grid[sphere[0], sphere[1], sphere[2]] += 1
 
+                self.grid[sphere[0], sphere[1], sphere[2]] += 1
+                self.grid_1d[sphere_2d[2]] += 1
+                self.grid_2d[sphere_2d[0], sphere_2d[1]] += 1
+        print('binning finshished----------------------')
+        if not threshold:
+            threshold = self.get_threshold()
+        print('threshold finished----------------------')
+        self.grid -= threshold
+
+        # blob_idx = np.where(self.grid >= threshold/2)
         #
-        blobs = findBlobs(self.grid, scales=range(1, 2), threshold=threshold)
+        # blobs = np.vstack(blob_idx).T
+        # blobs = [self.grid_to_coord(b) for b in blobs]
+
+        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=100)
         blobs = np.array(blobs)
-        print('shape: ', blobs.shape)
+        print('blobs: ', blobs.shape)
 
         blobs = [self.grid_to_coord(p[1:]) for p in blobs]
         print('blobs: \n', blobs)
 
         ret = np.array(np.where(self.grid >= threshold)).T
-        print(len(ret))
+        print('number above threshold: ', len(ret))
         self.centers = np.asarray(blobs)
+        #self.centers = self.fit_bao(radius, error)
+        return blobs
+
+    def blobs(self, threshold, radius, error, blob_size):
+
+
+        # blob_idx = np.where(self.grid >= 150)
+        # print(blob_idx)
+        # blobs = np.vstack(blob_idx).T
+        # blobs = [self.grid_to_coord(b) for b in blobs]
+        # self.grid[blob_idx] = 0
+        self.grid -= threshold
+
+        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=7)
+        print(blobs)
+        print('blobs: ', blobs.shape)
+        blobs = [self.grid_to_coord(p[1:]) for p in blobs]
+        print('blobs: \n', blobs)
+
+        # blobs = simple_maxima(self.grid)
+        # print(blobs)
+        # print('blobs: ', blobs.shape)
+        # blobs = [self.grid_to_coord(p) for p in blobs]
+        # print('blobs: \n', blobs)
+
+        ret = np.array(np.where(self.grid >= threshold)).T
+        print('number above threshold: ', len(ret))
+        self.centers = np.asarray(blobs)
+        self.centers = self.fit_bao(radius, error)
+
         return blobs
 
     def eval(self):
+        print(self.centers)
         if not self.centers.any():
             raise ValueError("self.centers not defined. Run center_finder routine first")
         centers_d = self.get_centers()
         centers_d = np.asarray(centers_d)
-        print(centers_d)
-        print(self.centers)
+        print('centers len', len(self.centers))
         distribution = []
         for center in self.centers:
             print('self.center: ', center[:3])
@@ -107,19 +185,21 @@ class Sky:
     def get_centers(self):
         return np.vstack([point for point in self.points_arr if point[3] == 2])
 
-    def fit_bao(self, radius):
+    def fit_bao(self, radius, error):
         ret = []
         xyz = np.array(self.xyz_list)[:3].T
-        print(xyz.shape)
+        print('Fitting bao')
         for center in self.centers:
-            print('center: ', center)
-            sphere = [p for p in xyz if (util.distance(center, p) < radius * 1.2)]
+            sphere = [p for p in xyz if (util.distance(center, p) <= radius + error) and (util.distance(center, p) >= radius - error)]
             sphere = np.array(sphere).T
-            print(sphere.shape)
-            fit = util.sphere_fit(sphere[0], sphere[1], sphere[2])
-            print(fit)
-            ret.append(fit)
-        return ret
+            if len(sphere) == 0:
+                pass
+            else:
+                # print('points found in sphere: ', sphere.shape)
+                fit = util.sphere_fit(sphere[0], sphere[1], sphere[2])
+                # print(fit)
+                ret.append(fit[1])
+        return np.vstack(ret)
 
     def plot_sky(self, show_rim=False, radius=0):
         ax = Axes3D(plt.gcf())
@@ -130,6 +210,8 @@ class Sky:
         ax.scatter(centers_d[:, 0], centers_d[:, 1], centers_d[:, 2], color='blue')
         for center in self.centers:
             ax.scatter(center[0], center[1], center[2], color='red')
+        print('centers: ', len(self.centers))
+        plt.title('SignalN3_mid')
         if show_rim:
             if not radius:
                 raise ValueError('Need radius')
@@ -137,19 +219,76 @@ class Sky:
             for fit in self.centers:
                 sph = util.draw_sphere(fit, radius, self.bin_space)
                 sph = np.array(sph).T
-                ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05, color='r')
+                if len(sph) != 0:
+                    ax.scatter(xs=sph[0], ys=sph[1], zs=sph[2], alpha=0.05, color='r')
             ax.legend(['rim in data', 'center in data', 'rim found', 'center found'])
         else:
             ax.legend(['center in data', 'center found'])
         plt.show()
 
+    def plot_original(self):
+        ax = Axes3D(plt.gcf())
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        centers_d = self.get_centers()
+        ax.scatter(centers_d[:, 0], centers_d[:, 1], centers_d[:, 2], color='blue')
+        ax.scatter(xs=self.xyz_list[0], ys=self.xyz_list[1], zs=self.xyz_list[2], color='blue', alpha=0.1)
+        plt.show()
+
     def plot_eval(self):
+        rc('font', family='serif')
+        rc('font', size=16)
         distr = self.eval()
         mean, std = norm.fit(distr)
-        print(mean, std)
-        plt.hist(distr, bins=20, density=True)
+        num = len(np.where((distr >= mean - 3 * std) & (distr <= mean + 3 * std)))
+        ratio = num / len(distr)
+        print(mean, std, ratio)
+        print('\n')
+        print("Ratio within 3 sigma of mean: ", ratio)
+        plt.figure(figsize=[6, 5.5])
+        plt.hist(distr, bins=50, density=True)
         xmin, xmax = plt.xlim()
         x = np.linspace(xmin, xmax, 100)
         y = norm.pdf(x, mean, std)
         plt.plot(x, y)
+
+        plt.xlabel('distance')
+        plt.ylabel('frequency')
+        plt.title('Distance to real centers (SignalN3_mid)')
+        plt.figtext(0.5, 0.01, "mean = {:f}, standard deviation = {:f}".format(mean, std), wrap=True,
+                    horizontalalignment='center', fontsize=12)
+
+        plt.tight_layout()
+        #plt.savefig()
         plt.show()
+
+    def get_threshold(self):
+        # if not (self.grid and self.grid_2d and self.grid_1d):
+        #     raise ValueError('Run center-finding routine first')
+        x, y, z = self.grid.shape
+        thres_grid = np.dstack(np.meshgrid(np.arange(x), np.arange(y), indexing='ij'))
+        # print(thres_grid)
+        thres_grid = np.zeros(self.grid.shape)
+        for idx, val in np.ndenumerate(thres_grid):
+            sky_coord = self.grid_to_coord(idx)
+            # print('sky coord: ', sky_coord)
+            new_idx = self.coord_to_grid_2d(sky_coord[:3])
+
+            if new_idx is not None:
+                thres_grid[idx] = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
+
+        factor = abs(np.median(self.grid) / np.median(thres_grid))
+        print('factor: ', factor)
+        # print(np.mean(self.grid), np.median(self.grid), np.max(self.grid))
+        thres_grid *= factor
+        local_thres = util.local_thres(self.grid)
+        return thres_grid + local_thres
+
+    def get_hard_thres(self):
+        '''TODO: not working'''
+        sorted = np.sort(self.grid.flatten())
+        rank = int(19*len(sorted) / 20)
+        thres = sorted[rank]
+        print('hard threshold: ', thres)
+        return thres

@@ -2,7 +2,9 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from matplotlib import rc
+from mpl_toolkits.mplot3d import Axes3D
 import pickle
+from scipy.ndimage.filters import convolve
 
 
 def load_data(filename, space=1):
@@ -17,18 +19,59 @@ def load_data(filename, space=1):
     typ = typ[::space]
     return ra, dec, z, typ
 
+def local_thres(data):
+    w = np.full((3, 3, 3), 1.0/27)
+    return convolve(data, w)
+
 
 def SkyToSphere(ra, dec, z, typ=0, degrees=True):
+    # if degrees:
+    #     ra = np.radians(ra)
+    #     dec = np.radians(dec)
+    #
+    # x = np.cos(dec) * np.cos(ra) * z
+    # y = np.cos(dec) * np.sin(ra) * z
+    # z = np.sin(dec) * z
+
     if degrees:
         ra = np.radians(ra)
         dec = np.radians(dec)
 
-    # cartesian coordinates
-    x = np.cos(dec) * np.cos(ra) * z
-    y = np.cos(dec) * np.sin(ra) * z
-    z = np.sin(dec) * z
-    # return np.stack([x,y,z]).T
+    omegaM = 0.274
+    norm = 3000
+    func = z * (1 - omegaM * 3 * z / 4)
+    r = norm * func
+
+    x = np.cos(dec) * np.cos(ra) * r
+    y = np.cos(dec) * np.sin(ra) * r
+    z = np.sin(dec) * r
     return x, y, z, typ
+
+def CartesianToSky(x, y, z):
+    '''
+    :param x:
+    :param y:
+    :param z:
+    :return: ra, dec, r
+    TODO: currently returns r, not z
+    '''
+    s = np.sqrt(x **2 + y **2)
+    lon = np.arctan2(y, x)
+    lat = np.arctan2(z, s)
+
+    ra = np.degrees(lon)
+    ra = (ra + 360) % 360
+    dec = np.degrees(lat)
+
+    omegaM = 0.274
+    norm = 3000
+    r = z / np.sin(np.radians(dec))
+    func = r / norm
+    z = 2.43309 - 0.108811 * np.sqrt(500 - 411*func)
+
+    return ra, dec, z
+
+
 
 
 def sphere_window(radius, bin_space, error=-1):
@@ -59,9 +102,9 @@ def draw_sphere(point, radius, bin_space, error=-1):
     diameter_bins = int((radius + error) * 2 / bin_space)
     # diameter_bins = 20
     x, y, z = point[:3]
-    sphere_coord_x = np.linspace(x - radius - error, x + radius, diameter_bins + error)
-    sphere_coord_y = np.linspace(y - radius - error, y + radius, diameter_bins + error)
-    sphere_coord_z = np.linspace(z - radius - error, z + radius, diameter_bins + error)
+    sphere_coord_x = np.linspace(x - radius - error, x + radius + error, diameter_bins)
+    sphere_coord_y = np.linspace(y - radius - error, y + radius + error, diameter_bins)
+    sphere_coord_z = np.linspace(z - radius - error, z + radius + error, diameter_bins)
     # sphere = zip(sphere_coord_x, sphere_coord_y, sphere_coord_z)
     a, b, c = np.meshgrid(sphere_coord_x, sphere_coord_y, sphere_coord_z)
     sphere = zip(a.ravel(), b.ravel(), c.ravel())
@@ -131,3 +174,24 @@ def unpickle_sky(filename):
     with open(filename, 'rb') as f:
         sky = pickle.load(f)
     return sky
+
+
+def plot_threshold(threshold, above=0):
+    ax = Axes3D(plt.gcf())
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+
+    if above == 0:
+        sorted = np.sort(threshold)
+        above = sorted[int(9 * len(sorted) / 10)]
+
+        for i in range(3, 20):
+            above = np.median(threshold) * i
+            centers_d = np.where(threshold >= above)
+            ax.scatter(centers_d[0], centers_d[1], centers_d[2], color='blue', alpha=0.1)
+
+    # self.grid[blob_idx] = 0
+
+
+    plt.show()
