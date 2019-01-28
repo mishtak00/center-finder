@@ -19,8 +19,8 @@ def load_data(filename, space=1):
     typ = typ[::space]
     return ra, dec, z, typ
 
-def local_thres(data):
-    w = np.full((3, 3, 3), 1.0/27)
+def local_thres(data, region):
+    w = np.full((region, region, region), 1.0/(region ** 3))
     return convolve(data, w)
 
 

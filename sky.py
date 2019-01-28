@@ -9,7 +9,7 @@ import util
 
 
 class Sky:
-    def __init__(self, data_list, avg_bins=100):
+    def __init__(self, data_list, avg_bins=100, bin_space=5):
         if len(data_list) > 0:
             self.data_list = data_list
         else:
@@ -22,14 +22,19 @@ class Sky:
         for i in range(3):
             self.ranges.append((min(self.xyz_list[i]), max(self.xyz_list[i])))
         self.bin_space = np.mean([i[1] - i[0] for i in self.ranges]) / avg_bins
+
+        if bin_space:
+            self.bin_space = bin_space
+
         print('binspace: ', self.bin_space)
         self.bins = [math.ceil((self.ranges[i][1] - self.ranges[i][0]) / self.bin_space) for i in range(3)]
+        avg_bins = np.mean(self.bins)
         print('bins: ',self.bins)
         print('ranges: ', self.ranges)
         self.grid = np.zeros(self.bins)
 
         ''' initialize 2d and 1d bins'''
-        avg_bins_2d = 20
+        avg_bins_2d = int(avg_bins / 2)
         self.ranges_2d = []
         for i in range(3):
             self.ranges_2d.append((min(self.data_list[i]), max(self.data_list[i])))
@@ -114,14 +119,35 @@ class Sky:
     def blobs(self, threshold, radius, error, blob_size):
 
 
+        # blob_idx = np.where(self.grid >= 300)
+        # print(blob_idx)
+        # blobs = np.vstack(blob_idx).T
+        # blobs = [self.grid_to_coord(b) for b in blobs]
+
+
+        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=15)
+        print(blobs)
+        print('blobs: ', blobs.shape)
+        blobs = [self.grid_to_coord(p[1:]) for p in blobs]
+        print('blobs: \n', blobs)
+
+
+        ret = np.array(np.where(self.grid >= threshold)).T
+        print('number above threshold: ', len(ret))
+        self.centers = np.asarray(blobs)
+        self.centers = self.fit_bao(radius, error)
+
+        return blobs
+
+    def blobs_thres(self, threshold, radius, error, blob_size):
+        self.grid -= threshold
+
         # blob_idx = np.where(self.grid >= 150)
         # print(blob_idx)
         # blobs = np.vstack(blob_idx).T
         # blobs = [self.grid_to_coord(b) for b in blobs]
-        # self.grid[blob_idx] = 0
-        self.grid -= threshold
 
-        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=7)
+        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=15)
         print(blobs)
         print('blobs: ', blobs.shape)
         blobs = [self.grid_to_coord(p[1:]) for p in blobs]
@@ -136,13 +162,13 @@ class Sky:
         ret = np.array(np.where(self.grid >= threshold)).T
         print('number above threshold: ', len(ret))
         self.centers = np.asarray(blobs)
-        self.centers = self.fit_bao(radius, error)
+        self.centers = self.fit_bao(radius, error*2)
 
         return blobs
 
     def eval(self):
         print(self.centers)
-        if not self.centers.any():
+        if not self.centers:
             raise ValueError("self.centers not defined. Run center_finder routine first")
         centers_d = self.get_centers()
         centers_d = np.asarray(centers_d)
@@ -238,7 +264,7 @@ class Sky:
 
     def plot_eval(self):
         rc('font', family='serif')
-        rc('font', size=16)
+        # rc('font', size=16)
         distr = self.eval()
         mean, std = norm.fit(distr)
         num = len(np.where((distr >= mean - 3 * std) & (distr <= mean + 3 * std)))
@@ -278,12 +304,12 @@ class Sky:
             if new_idx is not None:
                 thres_grid[idx] = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
 
-        factor = abs(np.median(self.grid) / np.median(thres_grid))
+        factor = abs(np.median(self.grid) / np.median(thres_grid)) /2
         print('factor: ', factor)
         # print(np.mean(self.grid), np.median(self.grid), np.max(self.grid))
         thres_grid *= factor
-        local_thres = util.local_thres(self.grid)
-        return thres_grid + local_thres
+        thres_grid += util.local_thres(self.grid, 20)/2
+        return thres_grid
 
     def get_hard_thres(self):
         '''TODO: not working'''

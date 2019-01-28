@@ -14,7 +14,7 @@ def simple_maxima(data, threshold=10):
     # x[maxima] =
     # print(x.shape)
     # index = np.argwhere(x >= threshold)
-    index = peak_local_max(data, min_distance=0, num_peaks=100, threshold_rel=0.1)
+    index = peak_local_max(data, min_distance=1, num_peaks=100, threshold_rel=0.1)
     print(len(index))
     return np.asarray(index)
 
