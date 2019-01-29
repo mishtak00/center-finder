@@ -25,19 +25,7 @@ def test_blob(filename):
     sky.plot_sky(show_rim=False, radius=105)
     print('threshold: ', np.mean(threshold), np.median(threshold), np.max(threshold))
     print(np.mean(sky.grid), np.median(sky.grid), np.max(sky.grid))
-
-    plt.imshow(sky.grid[1])
-    plt.colorbar()
-    plt.show()
-    plt.imshow(sky.grid[5])
-    plt.colorbar()
-    plt.show()
-    plt.imshow(sky.grid[9])
-    plt.colorbar()
-    plt.show()
-    sky.grid += threshold
-    path = 'test_easy'
-    util.pickle_sky(sky, 'Data/' + path)
+    sky.plot_eval()
 
 
 def test_stat(filename):
@@ -56,6 +44,6 @@ def test_stat(filename):
 
 
 filename = 'mid_fine_bins'
-test_center_finder('SignalN3_mid.txt', 105)
-# test_blob('Data/' + filename)
+# test_center_finder('SignalN3_mid.txt', 105)
+test_blob('Data/' + filename)
 # test_stat('Data/' + filename)

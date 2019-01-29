@@ -250,7 +250,9 @@ class Sky:
             ax.legend(['rim in data', 'center in data', 'rim found', 'center found'])
         else:
             ax.legend(['center in data', 'center found'])
-        plt.show()
+        path = 'Figures/Figure_0129_mid_fine_bins.png'
+        plt.savefig(path)
+        #plt.show()
 
     def plot_original(self):
         ax = Axes3D(plt.gcf())
@@ -286,8 +288,9 @@ class Sky:
                     horizontalalignment='center', fontsize=12)
 
         plt.tight_layout()
-        #plt.savefig()
-        plt.show()
+        path = 'Figures/Figure_0129_mid_fine_bins_distr.png'
+        plt.savefig(path)
+        #plt.show()
 
     def get_threshold(self):
         # if not (self.grid and self.grid_2d and self.grid_1d):
