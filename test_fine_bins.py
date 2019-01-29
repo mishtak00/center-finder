@@ -57,5 +57,5 @@ def test_stat(filename):
 
 filename = 'mid_fine_bins'
 test_center_finder('SignalN3_mid.txt', 105)
-test_blob('Data/' + filename)
-test_stat('Data' + filename)
+# test_blob('Data/' + filename)
+# test_stat('Data/' + filename)
