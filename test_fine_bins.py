@@ -11,24 +11,26 @@ def test_center_finder(filename, radius):
     sky = sk.Sky(sphere, bin_space=5)
     centers = sky.center_finder(radius, error=sky.bin_space, blob_size=2, threshold=10)
 
-    path = 'mid_fine_bins'
+    path = 'mid_fine_bins_'+ str(radius)
     util.pickle_sky(sky, 'Data/' + path)
 
 
-def test_blob(filename):
+def test_blob(filename, radius):
     sky = util.unpickle_sky(filename)
     if not isinstance(sky, sk.Sky):
         raise ValueError("Object is of type " + type(sky))
+    filename = filename.replace('/', '_')
     threshold = sky.get_threshold()
     # util.plot_threshold(threshold)
-    sky.centers = sky.blobs(threshold, error=sky.bin_space, radius=105, blob_size=2)
-    sky.plot_sky(show_rim=False, radius=105)
+    sky.centers = sky.blobs(threshold, error=sky.bin_space, radius=radius, blob_size=2)
+    sky.plot_sky(show_rim=False, radius=radius, savelabel=filename)
     print('threshold: ', np.mean(threshold), np.median(threshold), np.max(threshold))
     print(np.mean(sky.grid), np.median(sky.grid), np.max(sky.grid))
-    sky.plot_eval()
+
+    sky.plot_eval(savelabel=filename)
 
 
-def test_stat(filename):
+def test_stat(filename, radius):
     sky = util.unpickle_sky(filename)
     if not isinstance(sky, sk.Sky):
         raise ValueError("Object is of type " + type(sky))
@@ -40,10 +42,15 @@ def test_stat(filename):
     sky.get_threshold()
     print(len(sky.centers))
     sky.plot_eval()
-    sky.plot_sky(show_rim=False, radius=105)
+    sky.plot_sky(show_rim=False, radius=radius)
 
 
-filename = 'mid_fine_bins'
-# test_center_finder('SignalN3_mid.txt', 105)
-test_blob('Data/' + filename)
-# test_stat('Data/' + filename)
+from argparse import ArgumentParser
+parser = ArgumentParser()
+parser.add_argument('radius', metavar='radius', type=int, nargs=1)
+args = parser.parse_args()
+radius = args.radius[0]
+filename = 'mid_fine_bins_' + str(radius)
+test_center_finder('SignalN3_mid.txt', radius)
+test_blob('Data/' + filename, radius=radius)
+#test_stat('Data/' + filename)

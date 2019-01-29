@@ -227,7 +227,7 @@ class Sky:
                 ret.append(fit[1])
         return np.vstack(ret)
 
-    def plot_sky(self, show_rim=False, radius=0):
+    def plot_sky(self, show_rim=False, radius=0, savelabel=None):
         ax = Axes3D(plt.gcf())
         ax.set_xlabel('x')
         ax.set_ylabel('y')
@@ -250,9 +250,12 @@ class Sky:
             ax.legend(['rim in data', 'center in data', 'rim found', 'center found'])
         else:
             ax.legend(['center in data', 'center found'])
-        path = 'Figures/Figure_0129_mid_fine_bins.png'
-        plt.savefig(path)
-        #plt.show()
+
+        if savelabel:
+            path = 'Figures/Figure_'+savelabel+'.png'
+            plt.savefig(path)
+        else:
+            plt.show()
 
     def plot_original(self):
         ax = Axes3D(plt.gcf())
@@ -264,33 +267,36 @@ class Sky:
         ax.scatter(xs=self.xyz_list[0], ys=self.xyz_list[1], zs=self.xyz_list[2], color='blue', alpha=0.1)
         plt.show()
 
-    def plot_eval(self):
+    def plot_eval(self, savelabel=None):
         rc('font', family='serif')
         # rc('font', size=16)
         distr = self.eval()
         mean, std = norm.fit(distr)
         num = len(np.where((distr >= mean - 3 * std) & (distr <= mean + 3 * std)))
         ratio = num / len(distr)
+        efficiency = len([x for x in distr if x < 20]) / len(distr)
+        fake = 1 - efficiency
         print(mean, std, ratio)
         print('\n')
         print("Ratio within 3 sigma of mean: ", ratio)
-        plt.figure(figsize=[6, 5.5])
+        plt.figure(figsize=[6, 6])
         plt.hist(distr, bins=50, density=True)
         xmin, xmax = plt.xlim()
         x = np.linspace(xmin, xmax, 100)
         y = norm.pdf(x, mean, std)
         plt.plot(x, y)
 
-        plt.xlabel('distance')
+        plt.xlabel('distance \nmean = {:f}, standard deviation = {:f}\nefficiency = {:f}, fake rate = {:f}'.format(mean, std, efficiency, fake))
         plt.ylabel('frequency')
         plt.title('Distance to real centers (SignalN3_mid)')
-        plt.figtext(0.5, 0.01, "mean = {:f}, standard deviation = {:f}".format(mean, std), wrap=True,
-                    horizontalalignment='center', fontsize=12)
+        #plt.figtext(0.5, 0.02, "mean = {:f}, standard deviation = {:f}\nefficiency = {:f}".format(mean, std, efficiency), wrap=True, horizontalalignment='center', fontsize=12)
 
         plt.tight_layout()
-        path = 'Figures/Figure_0129_mid_fine_bins_distr.png'
-        plt.savefig(path)
-        #plt.show()
+        if savelabel:
+            path = 'Figures/Figure_'+savelabel+'_distr.png'
+            plt.savefig(path)
+        else:
+            plt.show()
 
     def get_threshold(self):
         # if not (self.grid and self.grid_2d and self.grid_1d):
