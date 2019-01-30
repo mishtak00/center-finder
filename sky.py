@@ -286,7 +286,7 @@ class Sky:
         y = norm.pdf(x, mean, std)
         plt.plot(x, y)
 
-        plt.xlabel('distance \nmean = {:f}, standard deviation = {:f}\nefficiency = {:f}, fake rate = {:f}'.format(mean, std, efficiency, fake))
+        plt.xlabel('distance \n centers found = {:d}\n mean = {:f}, standard deviation = {:f}\nefficiency = {:f}, fake rate = {:f}'.format(len(distr), mean, std, efficiency, fake))
         plt.ylabel('frequency')
         plt.title('Distance to real centers (SignalN3_mid)')
         #plt.figtext(0.5, 0.02, "mean = {:f}, standard deviation = {:f}\nefficiency = {:f}".format(mean, std, efficiency), wrap=True, horizontalalignment='center', fontsize=12)
