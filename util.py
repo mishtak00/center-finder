@@ -3,11 +3,19 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib import rc
 from mpl_toolkits.mplot3d import Axes3D
+from astropy.io import fits
 import pickle
 from scipy.ndimage.filters import convolve
 
 
 def load_data(filename, space=1):
+    if filename.split('.')[1] == 'fits':
+        hdul = fits.open(filename)
+        ra = hdul[1].data['ra']
+        dec = hdul[1].data['dec']
+        z = hdul[1].data['z']
+        typ = hdul[1].data['weight']
+        return ra, dec, z, typ
     data = np.genfromtxt(filename, unpack=True).T
     ra = data[:, 0]
     dec = data[:, 1]
@@ -25,14 +33,6 @@ def local_thres(data, region):
 
 
 def SkyToSphere(ra, dec, z, typ=0, degrees=True):
-    # if degrees:
-    #     ra = np.radians(ra)
-    #     dec = np.radians(dec)
-    #
-    # x = np.cos(dec) * np.cos(ra) * z
-    # y = np.cos(dec) * np.sin(ra) * z
-    # z = np.sin(dec) * z
-
     if degrees:
         ra = np.radians(ra)
         dec = np.radians(dec)
@@ -186,10 +186,10 @@ def plot_threshold(threshold, above=0):
         sorted = np.sort(threshold)
         above = sorted[int(9 * len(sorted) / 10)]
 
-        for i in range(3, 20):
+        for i in range(40, 100, 10):
             above = np.median(threshold) * i
             centers_d = np.where(threshold >= above)
-            ax.scatter(centers_d[0], centers_d[1], centers_d[2], color='blue', alpha=0.1)
+            ax.scatter(centers_d[0], centers_d[1], centers_d[2], color='blue', alpha=0.3)
 
     # self.grid[blob_idx] = 0
 

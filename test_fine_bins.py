@@ -8,19 +8,19 @@ import util
 
 def test_center_finder(filename, radius):
     sphere = util.load_data(filename)
-    sky = sk.Sky(sphere, bin_space=5)
+    sky = sk.Sky(sphere, bin_space=100)
     centers = sky.center_finder(radius, error=sky.bin_space, blob_size=2, threshold=10)
 
-    path = 'mid_fine_bins_'+ str(radius)
-    util.pickle_sky(sky, 'Data/' + path)
+    path = filename.split('.')[0]
+    util.pickle_sky(sky, path)
 
 
 def test_blob(filename, radius):
     sky = util.unpickle_sky(filename)
     if not isinstance(sky, sk.Sky):
         raise ValueError("Object is of type " + type(sky))
-    filename = filename.replace('/', '_')
-    threshold = sky.get_threshold()
+    filename = filename.split('/')[1]
+    threshold = sky.get_threshold(radius)
     # util.plot_threshold(threshold)
     sky.centers = sky.blobs(threshold, error=sky.bin_space, radius=radius, blob_size=2)
     sky.plot_sky(show_rim=False, radius=radius, savelabel=filename)
@@ -47,10 +47,9 @@ def test_stat(filename, radius):
 
 from argparse import ArgumentParser
 parser = ArgumentParser()
-parser.add_argument('radius', metavar='radius', type=int, nargs=1)
+parser.add_argument('filename', metavar='f', type=str, nargs=1)
 args = parser.parse_args()
-radius = args.radius[0]
-filename = 'mid_fine_bins_' + str(radius)
-test_center_finder('SignalN3_mid.txt', radius)
-test_blob('Data/' + filename, radius=radius)
-#test_stat('Data/' + filename)
+filename = args.filename[0]
+test_center_finder('Data/'+filename, 108)
+test_blob('Data/' + filename.split('.')[0], radius=108)
+

@@ -23,7 +23,7 @@ def localMinima(data, threshold):
     from numpy import ones, nonzero, transpose, expand_dims
     # print(data.shape, threshold.shape)
     if isinstance(threshold, int):
-        peaks = data < threshold
+        peaks = (data / threshold) > 0.5
     elif threshold.shape == data.shape:
         print('Using adaptive thresholding')
         peaks = data < threshold

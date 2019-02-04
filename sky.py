@@ -9,7 +9,7 @@ import util
 
 
 class Sky:
-    def __init__(self, data_list, avg_bins=100, bin_space=5):
+    def __init__(self, data_list, avg_bins=100, bin_space=0):
         if len(data_list) > 0:
             self.data_list = data_list
         else:
@@ -29,7 +29,7 @@ class Sky:
         print('binspace: ', self.bin_space)
         self.bins = [math.ceil((self.ranges[i][1] - self.ranges[i][0]) / self.bin_space) for i in range(3)]
         avg_bins = np.mean(self.bins)
-        print('bins: ',self.bins)
+        print('bins: ', self.bins)
         print('ranges: ', self.ranges)
         self.grid = np.zeros(self.bins)
 
@@ -40,7 +40,7 @@ class Sky:
             self.ranges_2d.append((min(self.data_list[i]), max(self.data_list[i])))
         self.bin_space_2d = np.mean([i[1] - i[0] for i in self.ranges_2d]) / avg_bins_2d
         self.bins_2d = [math.ceil((self.ranges_2d[i][1] - self.ranges_2d[i][0]) / self.bin_space_2d) for i in range(2)]
-        self.bin_space_1d = (np.max(self.data_list[2]) - np.min(self.data_list[2]))/avg_bins_2d
+        self.bin_space_1d = (np.max(self.data_list[2]) - np.min(self.data_list[2])) / avg_bins_2d
         self.bins_1d = avg_bins_2d
         self.grid_2d = np.zeros(self.bins_2d)
         self.grid_1d = np.zeros(self.bins_1d)
@@ -48,7 +48,7 @@ class Sky:
         print('2d and 1d bins space: ', self.bin_space_2d, self.bin_space_1d)
 
     def __repr__(self):
-        return 'sky<\n\tranges: \n\t\t' + str(self.ranges) +'\n\tbin space:\n\t\t' + str(self.bin_space) + '\n>'
+        return 'sky<\n\tranges: \n\t\t' + str(self.ranges) + '\n\tbin space:\n\t\t' + str(self.bin_space) + '\n>'
 
     def coord_to_grid(self, point):
         index = np.array(
@@ -60,13 +60,12 @@ class Sky:
         # print('2d ranges: ', self.ranges_2d)
         # print('bin spaces: ', self.bin_space_2d, self.bin_space_1d)
 
-        point = util.CartesianToSky(*point)
         if np.isnan(point).any():
-            #return [0, 0, 0]
+            # return [0, 0, 0]
             return None
         # print(point[2], self.ranges_2d[2][0], self.bin_space_1d)
         index = [min(self.bins_2d[i] - 1, int((point[i] - self.ranges_2d[i][0]) / self.bin_space_2d)) for i in range(2)]
-        z = min(self.bins_1d - 1, int((point[2] - self.ranges_2d[2][0])/ self.bin_space_1d))
+        z = min(self.bins_1d - 1, int((point[2] - self.ranges_2d[2][0]) / self.bin_space_1d))
         index.append(z)
         index = np.asarray(index)
         index[index < 0] = 0
@@ -85,18 +84,25 @@ class Sky:
                 pass
             else:
                 sphere = util.draw_sphere(point, radius, self.bin_space, error)
-                sphere_2d = np.array([self.coord_to_grid_2d(p) for p in sphere if self.coord_to_grid_2d(p) is not None]).T
-                #sphere_2d = [p for p in sphere if p is not None]
+                sphere_2d = [util.CartesianToSky(*point) for point in sphere]
+                sphere_2d = np.array(
+                    [self.coord_to_grid_2d(p) for p in sphere_2d if self.coord_to_grid_2d(p) is not None]).T
+                # sphere_2d = [p for p in sphere if p is not None]
                 sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
 
                 self.grid[sphere[0], sphere[1], sphere[2]] += 1
                 self.grid_1d[sphere_2d[2]] += 1
                 self.grid_2d[sphere_2d[0], sphere_2d[1]] += 1
+
         print('binning finshished----------------------')
+        self.grid_2d /= self.grid_2d.sum()
+        self.grid_1d /= self.grid_1d.sum()
         if not threshold:
-            threshold = self.get_threshold()
+            threshold = self.get_threshold(radius)
         print('threshold finished----------------------')
-        self.grid -= threshold
+        #self.grid -= threshold
+        self.grid /= threshold
+        self.grid -= util.local_thres(self.grid, 20) / 2
 
         # blob_idx = np.where(self.grid >= threshold/2)
         #
@@ -112,25 +118,23 @@ class Sky:
 
         ret = np.array(np.where(self.grid >= threshold)).T
         print('number above threshold: ', len(ret))
+        print(self.grid_2d)
         self.centers = np.asarray(blobs)
-        #self.centers = self.fit_bao(radius, error)
+        # self.centers = self.fit_bao(radius, error)
         return blobs
 
     def blobs(self, threshold, radius, error, blob_size):
-
 
         # blob_idx = np.where(self.grid >= 300)
         # print(blob_idx)
         # blobs = np.vstack(blob_idx).T
         # blobs = [self.grid_to_coord(b) for b in blobs]
 
-
         blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=15)
         print(blobs)
         print('blobs: ', blobs.shape)
         blobs = [self.grid_to_coord(p[1:]) for p in blobs]
         print('blobs: \n', blobs)
-
 
         ret = np.array(np.where(self.grid >= threshold)).T
         print('number above threshold: ', len(ret))
@@ -140,14 +144,15 @@ class Sky:
         return blobs
 
     def blobs_thres(self, threshold, radius, error, blob_size):
-        self.grid -= threshold
 
+        self.grid /= threshold
+        self.grid -= util.local_thres(self.grid, 20)/2
         # blob_idx = np.where(self.grid >= 150)
         # print(blob_idx)
         # blobs = np.vstack(blob_idx).T
         # blobs = [self.grid_to_coord(b) for b in blobs]
 
-        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=15)
+        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=5)
         print(blobs)
         print('blobs: ', blobs.shape)
         blobs = [self.grid_to_coord(p[1:]) for p in blobs]
@@ -162,7 +167,7 @@ class Sky:
         ret = np.array(np.where(self.grid >= threshold)).T
         print('number above threshold: ', len(ret))
         self.centers = np.asarray(blobs)
-        self.centers = self.fit_bao(radius, error*2)
+        self.centers = self.fit_bao(radius, error * 2)
 
         return blobs
 
@@ -216,7 +221,8 @@ class Sky:
         xyz = np.array(self.xyz_list)[:3].T
         print('Fitting bao')
         for center in self.centers:
-            sphere = [p for p in xyz if (util.distance(center, p) <= radius + error) and (util.distance(center, p) >= radius - error)]
+            sphere = [p for p in xyz if
+                      (util.distance(center, p) <= radius + error) and (util.distance(center, p) >= radius - error)]
             sphere = np.array(sphere).T
             if len(sphere) == 0:
                 pass
@@ -252,7 +258,7 @@ class Sky:
             ax.legend(['center in data', 'center found'])
 
         if savelabel:
-            path = 'Figures/Figure_'+savelabel+'.png'
+            path = 'Figures/Figure_' + savelabel + '.png'
             plt.savefig(path)
         else:
             plt.show()
@@ -286,21 +292,55 @@ class Sky:
         y = norm.pdf(x, mean, std)
         plt.plot(x, y)
 
-        plt.xlabel('distance \n centers found = {:d}\n mean = {:f}, standard deviation = {:f}\nefficiency = {:f}, fake rate = {:f}'.format(len(distr), mean, std, efficiency, fake))
+        plt.xlabel(
+            'distance \n centers found = {:d}\n mean = {:f}, standard deviation = {:f}\nefficiency = {:f}, fake rate = {:f}'.format(
+                len(distr), mean, std, efficiency, fake))
         plt.ylabel('frequency')
         plt.title('Distance to real centers (SignalN3_mid)')
-        #plt.figtext(0.5, 0.02, "mean = {:f}, standard deviation = {:f}\nefficiency = {:f}".format(mean, std, efficiency), wrap=True, horizontalalignment='center', fontsize=12)
+        # plt.figtext(0.5, 0.02, "mean = {:f}, standard deviation = {:f}\nefficiency = {:f}".format(mean, std, efficiency), wrap=True, horizontalalignment='center', fontsize=12)
 
         plt.tight_layout()
         if savelabel:
-            path = 'Figures/Figure_'+savelabel+'_distr.png'
+            path = 'Figures/Figure_' + savelabel + '_distr.png'
             plt.savefig(path)
         else:
             plt.show()
 
-    def get_threshold(self):
+    def get_threshold(self, radius):
         # if not (self.grid and self.grid_2d and self.grid_1d):
         #     raise ValueError('Run center-finding routine first')
+        '''
+
+        :return:
+        '''
+
+        '''
+        dVang=R^2 dR/dredshift dredshift cos(de) dde dalpha
+
+        dR/dredshift=norm(1-3redshift*Omega_M/2)
+        
+        dVD=dx dy dz
+        
+        weight=dVD/dVang
+        
+        norm = 3000,
+        
+        Omega_M=0.274,
+        
+        de - declination, dde - step in declination
+        
+        alpha - right ascension, dalpha - step in  right ascension
+        
+        dredshift - step in redshift
+        
+        Nexp=Ntot*Pang*Pz*weight.
+        
+        '''
+
+        print(self.grid_2d)
+        norm = 3000
+        Omega_M = 0.274
+        dVD = self.bin_space ** 3
         x, y, z = self.grid.shape
         thres_grid = np.dstack(np.meshgrid(np.arange(x), np.arange(y), indexing='ij'))
         # print(thres_grid)
@@ -308,22 +348,27 @@ class Sky:
         for idx, val in np.ndenumerate(thres_grid):
             sky_coord = self.grid_to_coord(idx)
             # print('sky coord: ', sky_coord)
-            new_idx = self.coord_to_grid_2d(sky_coord[:3])
+            ra, dec, z = util.CartesianToSky(*(sky_coord[:3]))
 
+            drdz = norm * (1 - 3 * z * Omega_M / 2)
+            dVang = radius ** 2 * drdz * self.bin_space_1d * np.cos(np.radians(dec)) * self.bin_space_2d ** 2
+            weight = dVD / dVang
+            new_idx = self.coord_to_grid_2d([ra, dec, z])
             if new_idx is not None:
-                thres_grid[idx] = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
+                thres_grid[idx] = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
 
-        factor = abs(np.median(self.grid) / np.median(thres_grid)) /2
+        factor = abs(np.median(self.grid) / np.median(thres_grid))
         print('factor: ', factor)
-        # print(np.mean(self.grid), np.median(self.grid), np.max(self.grid))
+        print(np.mean(self.grid), np.median(self.grid), np.max(self.grid))
         thres_grid *= factor
-        thres_grid += util.local_thres(self.grid, 20)/2
+        print(thres_grid)
+        # thres_grid += util.local_thres(self.grid, 20)/2
         return thres_grid
 
     def get_hard_thres(self):
         '''TODO: not working'''
         sorted = np.sort(self.grid.flatten())
-        rank = int(19*len(sorted) / 20)
+        rank = int(19 * len(sorted) / 20)
         thres = sorted[rank]
         print('hard threshold: ', thres)
         return thres
