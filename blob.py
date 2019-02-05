@@ -14,7 +14,7 @@ def simple_maxima(data, threshold=10):
     # x[maxima] =
     # print(x.shape)
     # index = np.argwhere(x >= threshold)
-    index = peak_local_max(data, min_distance=1, num_peaks=100, threshold_rel=0.1)
+    index = peak_local_max(data, min_distance=10, num_peaks=200, threshold_abs=0.5)
     print(len(index))
     return np.asarray(index)
 
@@ -22,8 +22,8 @@ def simple_maxima(data, threshold=10):
 def localMinima(data, threshold):
     from numpy import ones, nonzero, transpose, expand_dims
     # print(data.shape, threshold.shape)
-    if isinstance(threshold, int):
-        peaks = (data / threshold) > 0.5
+    if not isinstance(threshold, np.ndarray):
+        peaks = data > threshold
     elif threshold.shape == data.shape:
         print('Using adaptive thresholding')
         peaks = data < threshold
@@ -45,7 +45,7 @@ def blobLOG(data, threshold, scales=range(1, 10, 1)):
     log = empty((len(scales),) + data.shape, dtype=data.dtype)
     for slog, scale in zip(log, scales):
         slog[...] = scale ** 2 * gaussian_laplace(data, scale)
-    if not isinstance(threshold, int):
+    if isinstance(threshold, np.ndarray):
         thres_log = empty((len(scales),) + threshold.shape, dtype=threshold.dtype)
         for slog, scale in zip(thres_log, scales):
             slog[...] = scale ** 2 * gaussian_laplace(threshold, scale)

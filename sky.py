@@ -51,19 +51,41 @@ class Sky:
         return 'sky<\n\tranges: \n\t\t' + str(self.ranges) + '\n\tbin space:\n\t\t' + str(self.bin_space) + '\n>'
 
     def coord_to_grid(self, point):
+        if isinstance(point[0], np.ndarray):
+            index = []
+            for i in range(3):
+                v = (point[i] - self.ranges[i][0]) / self.bin_space
+                v = v.astype(int)
+                v[v >= self.bins[i]] = self.bins[i] - 1
+                index.append(v)
+            index = np.asarray(index)
+            index[index < 0] = 0
+            return index
         index = np.array(
             [min(self.bins[i] - 1, int((point[i] - self.ranges[i][0]) / self.bin_space)) for i in range(3)])
         index[index < 0] = 0
         return index
 
     def coord_to_grid_2d(self, point):
-        # print('2d ranges: ', self.ranges_2d)
-        # print('bin spaces: ', self.bin_space_2d, self.bin_space_1d)
-
         if np.isnan(point).any():
             # return [0, 0, 0]
             return None
         # print(point[2], self.ranges_2d[2][0], self.bin_space_1d)
+        if isinstance(point[0], np.ndarray):
+            index = []
+            for i in range(2):
+                v = (point[i] - self.ranges_2d[i][0]) / self.bin_space_2d
+                v = v.astype(int)
+                v[v >= self.bins_2d[i]] = self.bins_2d[i] - 1
+                index.append(v)
+            z = (point[2] - self.ranges_2d[2][0]) / self.bin_space_1d
+            z = z.astype(int)
+            z[z >= self.bins_1d] = self.bins_1d - 1
+            index.append(z)
+            index = np.asarray(index)
+            index[index < 0] = 0
+            return index
+
         index = [min(self.bins_2d[i] - 1, int((point[i] - self.ranges_2d[i][0]) / self.bin_space_2d)) for i in range(2)]
         z = min(self.bins_1d - 1, int((point[2] - self.ranges_2d[2][0]) / self.bin_space_1d))
         index.append(z)
@@ -72,9 +94,29 @@ class Sky:
         return index
 
     def grid_to_coord(self, point):
+        if isinstance(point[0], np.ndarray):
+            index = []
+            for i in range(3):
+                v = point[i] * self.bin_space + self.ranges[i][0]
+                # v = v.astype(int)
+                v[v >= self.ranges[i][1]] = self.ranges[i][1] - 1
+                index.append(v)
+            index = np.asarray(index)
+            return index
         index = np.array(
             [min(self.ranges[i][1], point[i] * self.bin_space + self.ranges[i][0]) for i in range(3)])
         return index
+
+
+    def vote(self, radius, error=-1, blob_size=10, threshold=None):
+        if error == -1:
+            error = self.bin_space
+        for point in zip(*self.xyz_list):
+            if np.isnan(point).any():
+                pass
+            else:
+                window, c = util.sphere_window(radius, self.bin_space, error)
+                self.place_sphere(point, window, radius, error)
 
     def center_finder(self, radius, error=-1, blob_size=10, threshold=None):
         if error == -1:
@@ -100,7 +142,7 @@ class Sky:
         if not threshold:
             threshold = self.get_threshold(radius)
         print('threshold finished----------------------')
-        #self.grid -= threshold
+        # self.grid -= threshold
         self.grid /= threshold
         self.grid -= util.local_thres(self.grid, 20) / 2
 
@@ -125,11 +167,6 @@ class Sky:
 
     def blobs(self, threshold, radius, error, blob_size):
 
-        # blob_idx = np.where(self.grid >= 300)
-        # print(blob_idx)
-        # blobs = np.vstack(blob_idx).T
-        # blobs = [self.grid_to_coord(b) for b in blobs]
-
         blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=15)
         print(blobs)
         print('blobs: ', blobs.shape)
@@ -145,14 +182,15 @@ class Sky:
 
     def blobs_thres(self, threshold, radius, error, blob_size):
 
-        self.grid /= threshold
-        self.grid -= util.local_thres(self.grid, 20)/2
-        # blob_idx = np.where(self.grid >= 150)
+        self.grid = self.grid + threshold
+        # self.grid = self.grid - util.local_thres(self.grid, 20)/2
+        # blob_idx = np.where(self.grid >= 10)
         # print(blob_idx)
         # blobs = np.vstack(blob_idx).T
         # blobs = [self.grid_to_coord(b) for b in blobs]
 
-        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=5)
+        print('starting finding blobs')
+        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=1)
         print(blobs)
         print('blobs: ', blobs.shape)
         blobs = [self.grid_to_coord(p[1:]) for p in blobs]
@@ -307,62 +345,47 @@ class Sky:
             plt.show()
 
     def get_threshold(self, radius):
-        # if not (self.grid and self.grid_2d and self.grid_1d):
-        #     raise ValueError('Run center-finding routine first')
-        '''
-
-        :return:
-        '''
 
         '''
         dVang=R^2 dR/dredshift dredshift cos(de) dde dalpha
 
         dR/dredshift=norm(1-3redshift*Omega_M/2)
-        
-        dVD=dx dy dz
-        
-        weight=dVD/dVang
-        
-        norm = 3000,
-        
-        Omega_M=0.274,
-        
-        de - declination, dde - step in declination
-        
-        alpha - right ascension, dalpha - step in  right ascension
-        
-        dredshift - step in redshift
-        
-        Nexp=Ntot*Pang*Pz*weight.
-        
-        '''
 
-        print(self.grid_2d)
+        dVD=dx dy dz
+
+        weight=dVD/dVang
+
+        norm = 3000,
+
+        Omega_M=0.274,
+
+        de - declination, dde - step in declination
+
+        alpha - right ascension, dalpha - step in  right ascension
+
+        dredshift - step in redshift
+
+        Nexp=Ntot*Pang*Pz*weight.
+
+        '''
         norm = 3000
         Omega_M = 0.274
         dVD = self.bin_space ** 3
-        x, y, z = self.grid.shape
-        thres_grid = np.dstack(np.meshgrid(np.arange(x), np.arange(y), indexing='ij'))
-        # print(thres_grid)
-        thres_grid = np.zeros(self.grid.shape)
-        for idx, val in np.ndenumerate(thres_grid):
-            sky_coord = self.grid_to_coord(idx)
-            # print('sky coord: ', sky_coord)
-            ra, dec, z = util.CartesianToSky(*(sky_coord[:3]))
-
-            drdz = norm * (1 - 3 * z * Omega_M / 2)
-            dVang = radius ** 2 * drdz * self.bin_space_1d * np.cos(np.radians(dec)) * self.bin_space_2d ** 2
-            weight = dVD / dVang
-            new_idx = self.coord_to_grid_2d([ra, dec, z])
-            if new_idx is not None:
-                thres_grid[idx] = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
+        xyz = [np.arange(self.bins[i]) for i in range(3)]
+        thres_grid = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
+        thres_grid = self.grid_to_coord(thres_grid)
+        ra, dec, z = util.CartesianToSky(*thres_grid)
+        drdz = norm * (1 - 3 * z * Omega_M / 2)
+        dVang = radius ** 2 * drdz * self.bin_space_1d * np.cos(np.radians(dec)) * self.bin_space_2d ** 2
+        weight = dVD / dVang
+        new_idx = self.coord_to_grid_2d([ra, dec, z])
+        thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
+        thres_grid = thres_grid.reshape(self.grid.shape)
 
         factor = abs(np.median(self.grid) / np.median(thres_grid))
         print('factor: ', factor)
-        print(np.mean(self.grid), np.median(self.grid), np.max(self.grid))
         thres_grid *= factor
         print(thres_grid)
-        # thres_grid += util.local_thres(self.grid, 20)/2
         return thres_grid
 
     def get_hard_thres(self):

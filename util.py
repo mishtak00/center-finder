@@ -72,20 +72,22 @@ def CartesianToSky(x, y, z):
     return ra, dec, z
 
 
-
-
 def sphere_window(radius, bin_space, error=-1):
     if error == -1:
         error = bin_space
     outer_bins = int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
-    window = np.zeros((outer_bins * 2 + 1, outer_bins * 2 + 1, outer_bins * 2 + 1))
+
+    xyz = [np.arange(outer_bins * 2 + 1) for i in range(3)]
+    window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
     center = int(outer_bins), int(outer_bins), int(outer_bins)
-    for index, val in np.ndenumerate(window):
-        if inner_bins <= distance(center, index) <= outer_bins:
-            window[index] = 1
-    return window, center
+    dist = np.asarray(distance(center, window))
+    dist[dist > outer_bins] = 0
+    dist[dist < inner_bins] = 0
+    dist[dist != 0] = 1
+    dist = dist.reshape((outer_bins * 2 + 1, outer_bins * 2 + 1, outer_bins * 2 + 1))
+    return dist, center
 
 
 def draw_sphere(point, radius, bin_space, error=-1):
@@ -183,7 +185,7 @@ def plot_threshold(threshold, above=0):
     ax.set_zlabel('z')
 
     if above == 0:
-        sorted = np.sort(threshold)
+        sorted = np.sort(threshold.flatten())
         above = sorted[int(9 * len(sorted) / 10)]
 
         for i in range(40, 100, 10):
