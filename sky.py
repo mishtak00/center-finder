@@ -109,14 +109,33 @@ class Sky:
 
 
     def vote(self, radius, error=-1, blob_size=10, threshold=None):
+        # if error == -1:
+        #     error = self.bin_space
+        # for point in zip(*self.xyz_list):
+        #     if np.isnan(point).any():
+        #         pass
+        #     else:
+        #         window, c = util.sphere_window(radius, self.bin_space, error)
+        #         self.place_sphere(point, window, radius, error)
         if error == -1:
             error = self.bin_space
         for point in zip(*self.xyz_list):
             if np.isnan(point).any():
                 pass
             else:
-                window, c = util.sphere_window(radius, self.bin_space, error)
-                self.place_sphere(point, window, radius, error)
+                sphere = util.draw_sphere(point, radius, self.bin_space, error)
+                sphere_2d = [util.CartesianToSky(*point) for point in sphere]
+                sphere_2d = np.array(
+                    [self.coord_to_grid_2d(p) for p in sphere_2d if self.coord_to_grid_2d(p) is not None]).T
+                # sphere_2d = [p for p in sphere if p is not None]
+                sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
+
+                self.grid[sphere[0], sphere[1], sphere[2]] += 1
+                self.grid_1d[sphere_2d[2]] += 1
+                self.grid_2d[sphere_2d[0], sphere_2d[1]] += 1
+        self.grid_2d /= self.grid_2d.sum()
+        self.grid_1d /= self.grid_1d.sum()
+        print('binning finshished----------------------')
 
     def center_finder(self, radius, error=-1, blob_size=10, threshold=None):
         if error == -1:
@@ -182,7 +201,7 @@ class Sky:
 
     def blobs_thres(self, threshold, radius, error, blob_size):
 
-        self.grid = self.grid + threshold
+        self.grid = self.grid - threshold
         # self.grid = self.grid - util.local_thres(self.grid, 20)/2
         # blob_idx = np.where(self.grid >= 10)
         # print(blob_idx)
