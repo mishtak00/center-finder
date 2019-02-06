@@ -8,7 +8,7 @@ import util
 
 def test_center_finder(filename, radius):
     sphere = util.load_data(filename)
-    sky = sk.Sky(sphere, bin_space=100)
+    sky = sk.Sky(sphere, bin_space=5)
     centers = sky.center_finder(radius, error=sky.bin_space, blob_size=2, threshold=10)
 
     path = filename.split('.')[0]

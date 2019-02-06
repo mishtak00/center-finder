@@ -37,7 +37,7 @@ def test_blob(filename):
     x = np.linspace(xmin, xmax, 100)
     y = norm.pdf(x, mean, std)
     plt.plot(x, y)
-    plt.show()
+    # plt.show()
 
     #
     # plt.imshow(sky.grid[1])
@@ -81,7 +81,7 @@ def test_stat(filename):
     sky.plot_sky(show_rim=False, radius=108)
 
 
-test_center_finder('Data/cf_mock_catalog_83C_120R.fits', 108)
+# test_center_finder('Data/cf_mock_catalog_83C_120R.fits', 108)
 # test_grid('Data/test_easy')
-test_blob('Data/test_easy')
+test_blob('Data/cf_mock_catalog_83C_120R')
 # test_stat('Data/test_easy')
