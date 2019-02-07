@@ -5,7 +5,7 @@ from matplotlib import rc
 from mpl_toolkits.mplot3d import Axes3D
 from astropy.io import fits
 import pickle
-from scipy.ndimage.filters import convolve
+from scipy.signal import fftconvolve
 
 
 def load_data(filename, space=1):
@@ -29,7 +29,7 @@ def load_data(filename, space=1):
 
 def local_thres(data, region):
     w = np.full((region, region, region), 1.0/(region ** 3))
-    return convolve(data, w)
+    return fftconvolve(data, w, mode='same')
 
 
 def SkyToSphere(ra, dec, z, typ=0, degrees=True):

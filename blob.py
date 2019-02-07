@@ -4,20 +4,31 @@ from numpy.linalg import norm
 from math import pi
 from scipy.ndimage.filters import gaussian_laplace, minimum_filter, gaussian_filter, median_filter
 from scipy.signal import argrelextrema
-from skimage.feature import peak_local_max
+from skimage.feature import peak_local_max, blob_dog
 import scipy.ndimage.filters as filters
 import scipy.ndimage.morphology as morphology
 
-def simple_maxima(data, threshold=10):
+def simple_maxima(data):
     # maxima = argrelextrema(arr, np.greater)
     # x = np.zeros(arr.shape)
     # x[maxima] =
     # print(x.shape)
     # index = np.argwhere(x >= threshold)
-    index = peak_local_max(data, min_distance=10, num_peaks=200, threshold_abs=0.5)
+    distr = data.flatten()
+    rms = np.sqrt(np.mean(distr ** 2))
+    thres = np.mean(distr) + rms * 2
+    index = peak_local_max(data, min_distance=10, threshold_abs=thres)
     print(len(index))
     return np.asarray(index)
 
+def dog(data):
+    distr = data.flatten()
+    rms = np.sqrt(np.mean(distr ** 2))
+    thres = np.mean(distr) + rms * 2
+    blobs = blob_dog(data, min_sigma=1, max_sigma=3, threshold=thres)
+    blobs = blobs[:, :3]
+    print(blobs)
+    return blobs
 
 def localMinima(data, threshold):
     from numpy import ones, nonzero, transpose, expand_dims
@@ -83,8 +94,13 @@ def findBlobs(img, scales=range(1, 10), threshold=10, max_overlap=0.05):
     peaks = blobLOG(img, scales=scales, threshold=-threshold)
     radii = peaks[:, 0]
     positions = peaks[:, 1:]
-
-    distances = norm(positions[:, None, :] - positions[None, :, :], axis=2)
+    print(positions.shape)
+    distances1 = positions[:, None, :]
+    distances2 = positions[None, :, :]
+    print(distances1.shape, distances2.shape)
+    distances = distances1 - distances2
+    #raise ValueError('-----')
+    distances = norm(distances, axis=2)
 
     if positions.shape[1] == 2:
         intersections = circleIntersection(radii, radii.T, distances)

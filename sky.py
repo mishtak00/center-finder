@@ -3,7 +3,7 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib import rc
 from mpl_toolkits.mplot3d import Axes3D
-from blob import findBlobs, simple_maxima
+from blob import findBlobs, simple_maxima, dog
 from scipy.stats import norm
 import util
 
@@ -103,10 +103,10 @@ class Sky:
                 index.append(v)
             index = np.asarray(index)
             return index
+        print(point)
         index = np.array(
             [min(self.ranges[i][1], point[i] * self.bin_space + self.ranges[i][0]) for i in range(3)])
         return index
-
 
     def vote(self, radius, error=-1, blob_size=10, threshold=None):
         # if error == -1:
@@ -137,89 +137,24 @@ class Sky:
         self.grid_1d /= self.grid_1d.sum()
         print('binning finshished----------------------')
 
-    def center_finder(self, radius, error=-1, blob_size=10, threshold=None):
-        if error == -1:
-            error = self.bin_space
-        for point in zip(*self.xyz_list):
-            if np.isnan(point).any():
-                pass
-            else:
-                sphere = util.draw_sphere(point, radius, self.bin_space, error)
-                sphere_2d = [util.CartesianToSky(*point) for point in sphere]
-                sphere_2d = np.array(
-                    [self.coord_to_grid_2d(p) for p in sphere_2d if self.coord_to_grid_2d(p) is not None]).T
-                # sphere_2d = [p for p in sphere if p is not None]
-                sphere = np.array([self.coord_to_grid(p) for p in sphere]).T
-
-                self.grid[sphere[0], sphere[1], sphere[2]] += 1
-                self.grid_1d[sphere_2d[2]] += 1
-                self.grid_2d[sphere_2d[0], sphere_2d[1]] += 1
-
-        print('binning finshished----------------------')
-        self.grid_2d /= self.grid_2d.sum()
-        self.grid_1d /= self.grid_1d.sum()
-        if not threshold:
-            threshold = self.get_threshold(radius)
-        print('threshold finished----------------------')
-        # self.grid -= threshold
-        self.grid /= threshold
-        self.grid -= util.local_thres(self.grid, 20) / 2
-
-        # blob_idx = np.where(self.grid >= threshold/2)
-        #
-        # blobs = np.vstack(blob_idx).T
-        # blobs = [self.grid_to_coord(b) for b in blobs]
-
-        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=100)
-        blobs = np.array(blobs)
-        print('blobs: ', blobs.shape)
-
-        blobs = [self.grid_to_coord(p[1:]) for p in blobs]
-        print('blobs: \n', blobs)
-
-        ret = np.array(np.where(self.grid >= threshold)).T
-        print('number above threshold: ', len(ret))
-        print(self.grid_2d)
-        self.centers = np.asarray(blobs)
-        # self.centers = self.fit_bao(radius, error)
-        return blobs
-
-    def blobs(self, threshold, radius, error, blob_size):
-
-        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=15)
-        print(blobs)
-        print('blobs: ', blobs.shape)
-        blobs = [self.grid_to_coord(p[1:]) for p in blobs]
-        print('blobs: \n', blobs)
-
-        ret = np.array(np.where(self.grid >= threshold)).T
-        print('number above threshold: ', len(ret))
-        self.centers = np.asarray(blobs)
-        self.centers = self.fit_bao(radius, error)
-
-        return blobs
-
     def blobs_thres(self, threshold, radius, error, blob_size):
 
-        self.grid = self.grid - threshold
-        # self.grid = self.grid - util.local_thres(self.grid, 20)/2
+        self.grid = self.grid / threshold
+        #self.grid = self.grid - util.local_thres(self.grid, 50)
         # blob_idx = np.where(self.grid >= 10)
         # print(blob_idx)
         # blobs = np.vstack(blob_idx).T
         # blobs = [self.grid_to_coord(b) for b in blobs]
 
-        print('starting finding blobs')
-        blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=1)
-        print(blobs)
-        print('blobs: ', blobs.shape)
-        blobs = [self.grid_to_coord(p[1:]) for p in blobs]
-        print('blobs: \n', blobs)
+        #blobs = findBlobs(self.grid, scales=range(1, blob_size), threshold=1)
+        blobs = dog(self.grid)
+        print('blob finshished----------------------')
+        blobs = [self.grid_to_coord(p) for p in blobs]
+        print('blobs: ', len(blobs))
 
         # blobs = simple_maxima(self.grid)
-        # print(blobs)
-        # print('blobs: ', blobs.shape)
+        # print('blobs: ', len(blobs))
         # blobs = [self.grid_to_coord(p) for p in blobs]
-        # print('blobs: \n', blobs)
 
         ret = np.array(np.where(self.grid >= threshold)).T
         print('number above threshold: ', len(ret))
@@ -390,9 +325,14 @@ class Sky:
         norm = 3000
         Omega_M = 0.274
         dVD = self.bin_space ** 3
-        xyz = [np.arange(self.bins[i]) for i in range(3)]
-        thres_grid = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
+        x, y, z = [np.arange(self.bins[i]) for i in range(3)]
+        thres_grid = np.vstack(np.meshgrid(x, y, z, indexing='ij')).reshape(3, -1)
+        print(self.grid.shape)
+        print(thres_grid.T[::174])
         thres_grid = self.grid_to_coord(thres_grid)
+        # test_grid = np.asarray([np.sum(i) for i in thres_grid.T]).reshape(self.grid.shape)
+        # plt.imshow(test_grid[:, 100, :])
+        # plt.show()
         ra, dec, z = util.CartesianToSky(*thres_grid)
         drdz = norm * (1 - 3 * z * Omega_M / 2)
         dVang = radius ** 2 * drdz * self.bin_space_1d * np.cos(np.radians(dec)) * self.bin_space_2d ** 2
@@ -401,10 +341,32 @@ class Sky:
         thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
         thres_grid = thres_grid.reshape(self.grid.shape)
 
-        factor = abs(np.median(self.grid) / np.median(thres_grid))
+        #thres_grid[thres_grid <= 0] = thres_grid.mean()
+
+        factor = abs(np.mean(self.grid) / np.mean(thres_grid))
         print('factor: ', factor)
         thres_grid *= factor
-        print(thres_grid)
+        section = int(len(thres_grid) / 4)
+        # plt.imshow(self.grid[section] * 2)
+        # plt.imshow()
+        # plt.imshow(thres_grid[section * 2])
+        # plt.show()
+        # plt.imshow(thres_grid[section * 3])
+        # plt.show()
+
+        f, axarr = plt.subplots(3, 3)
+        new = self.grid - thres_grid
+        axarr[0, 0].imshow(self.grid[section])
+        axarr[0, 1].imshow(thres_grid[section])
+        axarr[0, 2].imshow(new[section])
+        axarr[1, 0].imshow(self.grid[section * 2])
+        axarr[1, 1].imshow(thres_grid[section * 2])
+        axarr[1, 2].imshow(new[section*2])
+        axarr[2, 0].imshow(self.grid[section * 3])
+        axarr[2, 1].imshow(thres_grid[section * 3])
+        axarr[2, 2].imshow(new[section*3])
+        plt.show()
+
         return thres_grid
 
     def get_hard_thres(self):

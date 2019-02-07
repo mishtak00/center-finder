@@ -5,10 +5,10 @@ import util
 
 def test_center_finder(filename, radius):
     sphere = util.load_data(filename)
-    sky = sk.Sky(sphere, bin_space=5)
+    sky = sk.Sky(sphere, bin_space=100)
     centers = sky.vote(radius, error=sky.bin_space, blob_size=2, threshold=10)
 
-    path = filename.split('.')[0]
+    path = filename.split('.')[0] + '_' + str(radius)
     util.pickle_sky(sky, path)
 
 
@@ -45,7 +45,9 @@ def test_stat(filename, radius):
 from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument('filename', metavar='f', type=str, nargs=1)
+parser.add_argument('radius', metavar='r', type=int, nargs=1)
 args = parser.parse_args()
 filename = args.filename[0]
-test_center_finder('Data/'+filename, 108)
+radius = args.radius[0]
+test_center_finder('Data/'+filename, radius)
 
