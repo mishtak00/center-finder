@@ -27,7 +27,7 @@ def meta_stat(filename: str, center_num: int) -> None:
     for r in range(96, 130, 3):
         sky_ = util.unpickle_sky(filename + '_' + str(r))
         stat_.append(stat(sky_, center_num, r))
-    with open('../stats', 'wb') as f:
+    with open(filename+'_stats', 'wb') as f:
         pickle.dump(stat_, f)
 
 
@@ -47,5 +47,6 @@ def meta_plot(filename: str) -> None:
 
 
 if __name__ == '__main__':
-    meta_stat('../models/cf_mock_catalog_333C_30R', 333)
-    meta_plot('../stats')
+    filename = '../models/cf_mock_catalog_333C_30R'
+    meta_stat(filename, 333)
+    meta_plot(filename+'_stats')
