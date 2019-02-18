@@ -40,13 +40,13 @@ def meta_plot(filename: str) -> None:
     plt.plot(r, stat_[1])
     plt.plot(r, stat_[2])
     plt.legend(['efficiency', 'fake rate', 'multiplicity'], loc='upper right')
-    plt.title('mock with nrim=30, ncenter=333')
+    plt.title('mock with nrim=120, ncenter=83')
     time = str(datetime.datetime.now())
     plt.savefig('../Figures/Figure_'+time+'_stats.png')
     plt.show()
 
 
 if __name__ == '__main__':
-    filename = '../models/cf_mock_catalog_333C_30R'
-    meta_stat(filename, 333)
+    filename = '../models/cf_mock_catalog_83C_120R'
+    meta_stat(filename, 83)
     meta_plot(filename+'_stats')
