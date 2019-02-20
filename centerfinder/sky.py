@@ -10,7 +10,7 @@ from . import util
 
 
 class Sky:
-    def __init__(self, data_list: List, avg_bins=100, bin_space=0) -> None:
+    def __init__(self, data_list: List, avg_bins=100, bin_space=0, force_size=None) -> None:
         """
         :param data_list: required
         :param self.avg_bins: if bin_space is specified, self.avg_bins will be overwritten
@@ -33,13 +33,15 @@ class Sky:
         if bin_space:
             self.bin_space = bin_space
 
-        print('binspace: ', self.bin_space)
+
         self.bins = [math.ceil((self.ranges[i][1] - self.ranges[i][0]) / self.bin_space) for i in range(3)]
         self.avg_bins = np.mean(self.bins)
-        print('bins: ', self.bins)
-        print('ranges: ', self.ranges)
-        self.grid = np.zeros(self.bins)
 
+
+
+        if force_size:
+            self.bins = [force_size, force_size, force_size]
+        self.grid = np.zeros(self.bins)
         ''' initialize 2d and 1d bins'''
         self.avg_bins_2d = int(self.avg_bins / 2)
         self.ranges_2d = []
@@ -51,6 +53,9 @@ class Sky:
         self.bins_1d = self.avg_bins_2d
         self.grid_2d = np.zeros(self.bins_2d)
         self.grid_1d = np.zeros(self.bins_1d)
+        print('binspace: ', self.bin_space)
+        print('bins: ', self.bins)
+        print('ranges: ', self.ranges)
         print('2d and 1d bins shape: ', self.grid_2d.shape, self.grid_1d.shape)
         print('2d and 1d bins space: ', self.bin_space_2d, self.bin_space_1d)
 
@@ -124,17 +129,18 @@ class Sky:
             [min(self.ranges[i][1], point[i] * self.bin_space + self.ranges[i][0]) for i in range(3)])
         return index
 
-    def vote2(self, radius, error=-1):
-        if error == -1:
-            error = self.bin_space
-        window = util.sphere_window(radius, self.bin_space, error)
-        for point in zip(*self.xyz_list):
-            point = self._coord_to_grid(point)
-            if np.isnan(point).any():
-                pass
-            else:
-                self.place_sphere(point, window, radius, error)
-        print(self.grid.mean(), np.median(self.grid))
+    def get_center_grid(self):
+        center_grid = np.zeros(self.grid.shape)
+        centers = self.get_centers(grid=True).T
+        print(centers)
+        center_grid[centers[0], centers[1], centers[2]] = 1
+        return center_grid
+
+    def vote2(self, radius):
+        grids = self._coord_to_grid(self.xyz_list)
+        self.grid[grids[0], grids[1], grids[2]] += 1
+        w = util.sphere_window(radius, self.bin_space)
+        self.grid = util.conv(self.grid, w)
 
     def vote(self, radius, error=-1):
         if error == -1:
@@ -163,15 +169,15 @@ class Sky:
         self.grid[0, :, :] = 0
         self.grid[:, 0, :] = 0
         self.grid[:, :, 0] = 0
-
+        print(self.bins)
         if error == -1:
             error = self.bin_space
         threshold = self.get_threshold(radius, type_=type_)
         blobs = dog(self.grid, threshold, type_, blob_size)
         print('blob finshished----------------------')
-        print('blobs: ', len(blobs))
+        print('blobs: ', blobs)
         blobs = [self._grid_to_coord(p) for p in blobs]
-
+        print('blobs: ', blobs)
 
         ret = np.array(np.where(self.grid >= threshold)).T
         print('number above threshold: ', len(ret))
@@ -186,7 +192,7 @@ class Sky:
         print(self.centers)
         centers_d = self.get_centers()
         centers_d = np.asarray(centers_d)
-        print('centers len', len(self.centers))
+        print('centers len', centers_d)
         distribution = []
         centers_found = 0
         for center in self.centers:
@@ -197,8 +203,10 @@ class Sky:
         for center_d in centers_d:
             dist_2 = np.sum((center_d[:3] - np.vstack(self.centers)) ** 2, axis=1)
             nearest_dist = np.min(dist_2) ** .5
+            print(nearest_dist)
             if nearest_dist < 18:
                 centers_found += 1
+        print('c found: ', centers_found)
         return distribution, centers_found
 
     def draw_sphere(self, point, radius, error=-1):
@@ -355,6 +363,7 @@ class Sky:
 
         '''
         # self.grid -= util.local_thres(self.grid, 20)
+        #return util.local_thres(self.grid, 20)
         norm = 3000
         Omega_M = 0.274
         dVD = self.bin_space ** 3
@@ -376,10 +385,12 @@ class Sky:
             print('factor: ', factor)
             thres_grid *= factor
         elif type_ == 'difference':
+            print('thres_grid: ', thres_grid)
             median = np.median(thres_grid)
             thres_grid[thres_grid < median] = np.nan
+            #factor = abs(np.median(self.grid) / median)
+            factor = abs(np.nanmean(self.grid) / np.nanmean(thres_grid))
 
-            factor = abs(np.median(self.grid) / median)
             print('factor: ', factor)
             thres_grid *= factor
         # section = int(len(thres_grid) / 4)

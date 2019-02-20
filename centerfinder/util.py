@@ -6,6 +6,7 @@ from typing import List
 from matplotlib import rc
 from astropy.io import fits
 import pickle
+from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
 from . import sky
 
@@ -37,7 +38,8 @@ def load_data(filename: str) -> List[List]:
 
 def local_thres(data: np.ndarray, region: int) -> np.ndarray:
     w = np.full((region, region, region), 1.0 / (region ** 3))
-    return fftconvolve(data, w, mode='same')
+    ret = fftconvolve(data, w, mode='same')
+    return gaussian_filter(ret, region/2)
 
 
 def sky_to_cartesian(points: List, degrees=True):
@@ -98,18 +100,25 @@ def cartesian_to_sky(points: List):
 def sphere_window(radius: [float, int], bin_space: [float, int], error=-1):
     if error == -1:
         error = bin_space
-    outer_bins = int((radius + error) / bin_space)
+    outer_bins = int((radius + error * 5) / bin_space)
+    outer_r =int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
 
-    xyz = [np.arange(outer_bins * 2 + 1) for i in range(3)]
+    xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
     window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
     center = [int(outer_bins), int(outer_bins), int(outer_bins)]
     dist = np.asarray(distance(center, window))
-    dist[dist > outer_bins] = 0
-    dist[dist < inner_bins] = 0
-    dist[dist != 0] = 1
-    dist = dist.reshape((outer_bins * 2 + 1, outer_bins * 2 + 1, outer_bins * 2 + 1))
+    dist[dist < 3] = np.inf
+    dist[dist < inner_bins] = -.1
+    dist[dist == np.inf] = -10
+    dist[dist > outer_r] = 0
+    dist[dist > 0] = 1
+    dist[dist == -10] = 5
+
+    dist = dist.reshape((outer_bins * 2 - 1, outer_bins * 2 - 1, outer_bins * 2 - 1))
+    print(center, dist[(int(outer_bins), int(outer_bins), int(outer_bins))])
+    #dist = gaussian_filter(dist, 2)
     return dist
 
 
@@ -205,52 +214,45 @@ def unpickle_sky(filename):
 def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None, c_generated=None):
     if data.ndim != 3:
         raise ValueError('Grid to plot should be 3-dimensional')
-    section = int(len(data) / 10)
+    section = int(len(data) / 9)
     if 3 <= c_found.shape[1] <= 4:
         c_found = c_found.T
     if 3 <= c_generated.shape[1] <= 4:
         c_generated = c_generated.T
-    if thres_grid is None:
-        f, axarr = plt.subplots(3, 3)
-        new = data / thres_grid
-        axarr[0, 0].imshow(data[:, :, section])
-        axarr[0, 1].imshow(thres_grid[:, :, section])
-        axarr[0, 2].imshow(new[:, :, section])
-        axarr[1, 0].imshow(data[:, :, section * 2])
-        axarr[1, 1].imshow(thres_grid[:, :, section * 2])
-        axarr[1, 2].imshow(new[:, :, section * 2])
-        axarr[2, 0].imshow(data[:, :, section * 3])
-        axarr[2, 1].imshow(thres_grid[:, :, section * 3])
-        axarr[2, 2].imshow(new[:, :, section * 3])
-    else:
-        data /= thres_grid
-        data1 = np.copy(data)
-        vmin = -2
-        vmax = np.percentile(np.nan_to_num(data), 99)
-        #vmax = np.max(np.nan_to_num(data))
-        print(vmin, vmax)
-        data[c_found[0], c_found[1], c_found[2]] = -5
-        data[c_found[0], c_found[1], c_found[2]-1] = -5
-        #data[c_found[0], c_found[1], c_found[2]+1] = -5
-        # data = local_thres(data, 2)
-        #
-        data1[c_generated[0], c_generated[1], c_generated[2]] = -5
-        data1[c_generated[0], c_generated[1], c_generated[2]-1] = -5
-        #data1[c_generated[0], c_generated[1], c_generated[2]+1] = -5
-        # data1 = local_thres(data1, 2)
 
-        f, axarr = plt.subplots(2, 3)
-        axarr[0, 0].imshow(data[:, :, section*3], vmin=vmin, vmax=vmax)
-        axarr[1, 0].imshow(data1[:, :, section*3], vmin=vmin, vmax=vmax)
-        axarr[0, 1].imshow(data[:, :, section*4], vmin=vmin, vmax=vmax)
-        axarr[1, 1].imshow(data1[:, :, section*4], vmin=vmin, vmax=vmax)
-        axarr[0, 2].imshow(data[:, :, section*5], vmin=vmin, vmax=vmax)
-        axarr[1, 2].imshow(data1[:, :, section*5], vmin=vmin, vmax=vmax)
-    #plt.colorbar()
-    # cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
-    # for ax, col in zip(axarr[0], cols):
-    #     ax.set_title(col)
+    #data -= thres_grid
+    data1 = np.copy(data)
+    vmin = np.min(np.nan_to_num(data))
+    vmax = np.max(np.nan_to_num(data))
+    # vmin = np.percentile(np.nan_to_num(data), 1)
+    # vmax = np.percentile(np.nan_to_num(data), 99)
+    print(vmin, vmax)
+    data[c_found[0], c_found[1], c_found[2]] = vmax * 1.5
+    #data[c_found[0], c_found[1], c_found[2]-1] = vmax * 1.5
+    #data[c_found[0], c_found[1], c_found[2]+1] = -5
+    # data = local_thres(data, 2)
+    #
+    data1[c_generated[0], c_generated[1], c_generated[2]] = vmax * 1.5
+    #data1[c_generated[0], c_generated[1], c_generated[2]-1] = vmax * 1.5
+    #data1[c_generated[0], c_generated[1], c_generated[2]+1] = -5
+    # data1 = local_thres(data1, 2)
+
+    f, axarr = plt.subplots(2, 3)
+    im = axarr[0, 0].imshow(data[:, :, section*3], vmin=vmin, vmax=vmax)
+    im = axarr[1, 0].imshow(data1[:, :, section*3], vmin=vmin, vmax=vmax)
+    im = axarr[0, 1].imshow(data[:, :, section*4], vmin=vmin, vmax=vmax)
+    im = axarr[1, 1].imshow(data1[:, :, section*4], vmin=vmin, vmax=vmax)
+    im = axarr[0, 2].imshow(data[:, :, section*5], vmin=vmin, vmax=vmax)
+    im = axarr[1, 2].imshow(data1[:, :, section*5], vmin=vmin, vmax=vmax)
+    cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
+    #f.colorbar(im, ax=axarr.ravel().tolist())
+    for ax, col in zip(axarr[0], cols):
+        ax.set_title(col)
 
     #plt.colorbar(im, ax=axarr.ravel().tolist())
     plt.tight_layout()
     plt.show()
+
+
+def conv(data, window):
+    return fftconvolve(data, window, mode='same')
