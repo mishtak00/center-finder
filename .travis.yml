@@ -3,7 +3,6 @@ python:
 - '3.5'
 - '3.6'
 install:
-- pip install Cython
-- sh intall.sh
+- sh install.sh
 script:
 - pytest
