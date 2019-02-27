@@ -1,4 +1,5 @@
 #!/bin/sh
-while read p; do
-  pip install $p
-done < requirements.pip
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
