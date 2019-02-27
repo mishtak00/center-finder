@@ -18,7 +18,7 @@ pip install -e .
  
 Run an example test:
 ```
-python tests/blob_test.py
+python tests/test_blob.py
 ```
 
 Or customize input mock catalog and number of generated centers in the mock:
