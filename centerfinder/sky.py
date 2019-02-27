@@ -300,7 +300,7 @@ class Sky:
             ax.legend(['center in data', 'center found'])
 
         if savelabel:
-            path = '../Figures/Figure_' + savelabel + '.png'
+            path = 'Figures/Figure_' + savelabel + '.png'
             plt.savefig(path)
         else:
             plt.show()
@@ -359,7 +359,7 @@ class Sky:
 
         plt.tight_layout()
         if savelabel:
-            path = '../Figures/Figure_' + savelabel + '_distr.png'
+            path = 'Figures/Figure_' + savelabel + '_distr.png'
             plt.savefig(path)
         else:
             plt.show()
