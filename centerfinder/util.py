@@ -13,7 +13,7 @@ from . import sky
 sys.modules['sky'] = sky
 
 
-def load_data(filename: str) -> List[List]:
+def load_data(filename: str) -> np.ndarray:
     """
     load the data from file; can take in both plain text and .fits
     :param filename:
@@ -26,23 +26,30 @@ def load_data(filename: str) -> List[List]:
         dec = hdul[1].data['dec']
         z = hdul[1].data['z']
         typ_ = hdul[1].data['weight']
-        return [ra, dec, z, typ_]
+        return np.vstack([ra, dec, z, typ_])
 
     data = np.genfromtxt(filename, unpack=True).T
     ra = data[:, 0]
     dec = data[:, 1]
     z = data[:, 2]
     typ_ = data[:, 3]
-    return [ra, dec, z, typ_]
+    return np.vstack([ra, dec, z, typ_])
 
 
-def local_thres(data: np.ndarray, region: int) -> np.ndarray:
+def local_thres(data: np.ndarray, region: [int, float]) -> np.ndarray:
+    """
+    Mean-filter the 3-d grid
+    :param data:
+    :param region:
+    :return:
+    """
+    region = int(region)
     w = np.full((region, region, region), 1.0 / (region ** 3))
     ret = fftconvolve(data, w, mode='same')
-    return gaussian_filter(ret, region/2)
+    return ret
 
 
-def sky_to_cartesian(points: List, degrees=True):
+def sky_to_cartesian(points: np.ndarray, degrees=True):
     """
 
     :param points:
@@ -67,11 +74,11 @@ def sky_to_cartesian(points: List, degrees=True):
     z = np.sin(dec) * r
     if len(points) == 4:
         typ = points[3]
-        return x, y, z, typ
-    return x, y, z
+        return np.vstack([x, y, z, typ])
+    return np.vstack([x, y, z])
 
 
-def cartesian_to_sky(points: List):
+def cartesian_to_sky(points: np.ndarray):
     """
 
     :param points:
@@ -94,31 +101,36 @@ def cartesian_to_sky(points: List):
     func = r / norm
     z = 2.43309 - 0.108811 * np.sqrt(500 - 411 * func)
 
-    return ra, dec, z
+    return np.vstack([ra, dec, z])
 
 
-def sphere_window(radius: [float, int], bin_space: [float, int], error=-1):
+def kernel(radius: [float, int], bin_space: [float, int], error=-1):
+    """
+    The convolution kernel
+    :param radius:
+    :param bin_space:
+    :param error:
+    :return:
+    """
     if error == -1:
         error = bin_space
     outer_bins = int((radius + error * 5) / bin_space)
     outer_r =int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
-
     xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
     window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
-    center = [int(outer_bins), int(outer_bins), int(outer_bins)]
+    center = [int(outer_bins) -1, int(outer_bins)-1, int(outer_bins)-1]
     dist = np.asarray(distance(center, window))
-    dist[dist < 3] = np.inf
-    dist[dist < inner_bins] = -.1
+    dist[dist < 2] = np.inf
+    dist[dist < inner_bins] = 0
     dist[dist == np.inf] = -10
     dist[dist > outer_r] = 0
     dist[dist > 0] = 1
-    dist[dist == -10] = 5
+    dist[dist == -10] = 10
 
     dist = dist.reshape((outer_bins * 2 - 1, outer_bins * 2 - 1, outer_bins * 2 - 1))
-    print(center, dist[(int(outer_bins), int(outer_bins), int(outer_bins))])
-    #dist = gaussian_filter(dist, 2)
+
     return dist
 
 
@@ -147,6 +159,12 @@ def draw_sphere(point, radius, bin_space, error=-1):
 
 
 def distance(point_a: List, point_b: List):
+    """
+    Distance between 2 points; can pass in numpy arrays
+    :param point_a:
+    :param point_b:
+    :return:
+    """
     if len(point_a) < 3 or len(point_b) < 3:
         raise ValueError('Input dimension should be > 3; get {:d} and {:d}'.format(len(point_a), len(point_b)))
     x1, y1, z1 = point_a[:3]
@@ -154,29 +172,14 @@ def distance(point_a: List, point_b: List):
     return ((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2) ** .5
 
 
-def plot_threshold(matrix, num):
-    '''
-    Self-defined plotting function for matrix matrices
-    Decides the proper vmax and vmin when plotting matrix
-    :param matrix: matrix matrix
-    :param extent: the same 'extent' parameter as in imshow()
-    :param title: the same 'title' parameter as in imshow()
-    :return:
-    '''
-    matrix_sorted = matrix.flatten()
-    matrix_sorted = sorted(matrix_sorted)
-    first = int(len(matrix_sorted) / num)
-    last = first * (num - 1)
-    rc('font', family='serif')
-    rc('font', size=16)
-    plt.figure(figsize=[6, 6])
-    plt.tight_layout()
-    plt.imshow(matrix, vmax=matrix_sorted[last], vmin=matrix_sorted[first])
-    plt.colorbar()
-    plt.gca().invert_yaxis()
-
-
 def sphere_fit(sp_x, sp_y, sp_z):
+    """
+    Fit 3-d sphere
+    :param sp_x:
+    :param sp_y:
+    :param sp_z:
+    :return:
+    """
     #   Assemble the A matrix
     sp_x = np.array(sp_x)
     sp_y = np.array(sp_y)
@@ -236,6 +239,7 @@ def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None
     #data1[c_generated[0], c_generated[1], c_generated[2]-1] = vmax * 1.5
     #data1[c_generated[0], c_generated[1], c_generated[2]+1] = -5
     # data1 = local_thres(data1, 2)
+    vmax *= 1.2
 
     f, axarr = plt.subplots(2, 3)
     im = axarr[0, 0].imshow(data[:, :, section*3], vmin=vmin, vmax=vmax)
@@ -244,10 +248,10 @@ def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None
     im = axarr[1, 1].imshow(data1[:, :, section*4], vmin=vmin, vmax=vmax)
     im = axarr[0, 2].imshow(data[:, :, section*5], vmin=vmin, vmax=vmax)
     im = axarr[1, 2].imshow(data1[:, :, section*5], vmin=vmin, vmax=vmax)
-    cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
+    #cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
     #f.colorbar(im, ax=axarr.ravel().tolist())
-    for ax, col in zip(axarr[0], cols):
-        ax.set_title(col)
+    # for ax, col in zip(axarr[0], cols):
+    #     ax.set_title(col)
 
     #plt.colorbar(im, ax=axarr.ravel().tolist())
     plt.tight_layout()

@@ -8,16 +8,6 @@ from scipy import spatial
 from . import util
 
 
-def simple_maxima(data, threshold):
-    distr = (data / 1).flatten()
-    rms = np.sqrt(np.mean(distr ** 2))
-    factor = np.mean(distr) + rms
-    factor = 1
-    index = my_peak_local_max(data, min_distance=10, threshold_abs=factor)
-    print(len(index))
-    return np.asarray(index)
-
-
 def _get_high_intensity_peaks(image, mask, num_peaks):
     """
     Return the highest intensity peak coordinates.
@@ -299,30 +289,19 @@ def dog(data, threshold, type_, blob_size):
         distr = (data / threshold).flatten()
         distr = np.nan_to_num(distr)
         rms = np.sqrt(np.nanmean(distr ** 2))
-        # factor = np.nanmean(distr) * .7
-        # threshold *= factor
-        # threshold[threshold < median] = median
-        # print('factor: ', factor)
-        # blobs = my_blob_dog(data, min_sigma=1, max_sigma=blob_size, threshold=threshold)
-        # blobs = blobs[:, :3].astype(int)
-        # print(blobs)
-        # return blobs
-        factor = np.nanmean(distr) / 2
+        factor = np.nanmean(distr) + rms
         print('factor: ', factor)
-        blobs = my_blob_dog(data / threshold, min_sigma=2, max_sigma=blob_size, threshold=factor)
+        blobs = my_blob_dog(data / threshold, min_sigma=1, max_sigma=blob_size, threshold=factor)
         print(blobs)
         return blobs[:, :3]
     elif type_ == 'difference':
-
         distr = (data - threshold).flatten()
         distr = np.nan_to_num(distr)
         rms = np.sqrt(np.nanmean(distr ** 2))
-        factor = np.nanmean(distr) * .7
-        hard_thres = util.local_thres(data - np.nan_to_num(threshold), 10) / 5
+        factor = np.nanmean(distr) + 2 * rms
         data -= np.nan_to_num(threshold)
-        data -= util.local_thres(data, 10) / 2
         print('factor: ', factor)
-        blobs = my_blob_dog(data, min_sigma=2, max_sigma=blob_size, threshold=factor)
+        blobs = my_blob_dog(data, min_sigma=1, max_sigma=blob_size, threshold=factor)
         print(blobs)
         return blobs[:, :3]
 
