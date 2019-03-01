@@ -290,9 +290,7 @@ def dog(data, threshold, type_, blob_size):
         distr = np.nan_to_num(distr)
         rms = np.sqrt(np.nanmean(distr ** 2))
         factor = np.nanmean(distr) + rms
-        print('factor: ', factor)
         blobs = my_blob_dog(data / threshold, min_sigma=1, max_sigma=blob_size, threshold=factor)
-        print(blobs)
         return blobs[:, :3]
     elif type_ == 'difference':
         distr = (data - threshold).flatten()
@@ -300,8 +298,6 @@ def dog(data, threshold, type_, blob_size):
         rms = np.sqrt(np.nanmean(distr ** 2))
         factor = np.nanmean(distr) + 2 * rms
         data -= np.nan_to_num(threshold)
-        print('factor: ', factor)
         blobs = my_blob_dog(data, min_sigma=1, max_sigma=blob_size, threshold=factor)
-        print(blobs)
         return blobs[:, :3]
 

@@ -48,6 +48,7 @@ class Sky:
         self.grid_2d = np.zeros(self.bins_2d)
         self.grid_1d = np.zeros(self.bins_1d)
 
+        self.centers = []
         print(self, file=sys.stderr)
 
     def __repr__(self):
@@ -132,6 +133,13 @@ class Sky:
         center_grid[centers[0], centers[1], centers[2]] = 1
         return center_grid
 
+    def find_center(self, radius: [float, int],
+                    blob_size: int,
+                    type_: str,
+                    error=-1):
+        self.vote(radius)
+        self.blobs_thres(radius, blob_size, type_, error)
+
     def vote(self, radius: float) -> None:
         # TODO: fix 2d and 1d binning
         """
@@ -168,12 +176,15 @@ class Sky:
         sys.stderr.write('***************** blob finished *****************\n')
         gaus = util.local_thres(self.get_center_grid(), 18 / self.space_3d)
         confirmed = []
+
         for c_grid in blobs:
             c_grid = [int(c) for c in c_grid]
             if gaus[c_grid[0], c_grid[1], c_grid[2]] > 0:
                 confirmed.append(self._grid_to_coord(c_grid))
         self.centers = np.asarray(confirmed)
+
         self.centers = self.fit_bao(radius, error * 2)
+        self.centers = np.asarray(self.centers)
         sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
 
     def confirm_center(self) -> None:
