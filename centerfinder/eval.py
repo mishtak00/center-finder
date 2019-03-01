@@ -60,7 +60,8 @@ def fake_rate(sky_: sky.Sky, center_num: int = 0) -> float:
 
 
 def centers_found(sky_: sky.Sky, center_num: int = 0) -> int:
-    return len(sky_.centers)
+    distr, center = sky_.eval()
+    return len([x for x in distr if x < 18])
 
 
 def chi_sqr(sky_: sky.Sky, radius, true_center=True):
