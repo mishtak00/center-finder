@@ -6,7 +6,6 @@ from typing import List
 from matplotlib import rc
 from astropy.io import fits
 import pickle
-from scipy.ndimage import gaussian_filter
 from scipy.signal import fftconvolve
 from . import sky
 
@@ -82,7 +81,7 @@ def cartesian_to_sky(points: np.ndarray):
     """
 
     :param points:
-    :return:
+    :return: ndarray in shape (3, *)
     """
     if len(points) < 3:
         raise ValueError('Input dimension should be > 3; get {:d}'.format(len(points)))
@@ -102,6 +101,32 @@ def cartesian_to_sky(points: np.ndarray):
     z = 2.43309 - 0.108811 * np.sqrt(500 - 411 * func)
 
     return np.vstack([ra, dec, z])
+
+
+def distance_kernel(radius: [float, int], bin_space: [float, int], error=-1):
+    '''
+
+    :param radius: distance
+    :param bin_space:
+    :param error:
+    :return:
+    '''
+    if error == -1:
+        error = bin_space / 2
+    outer_bins = int((radius + error * 5) / bin_space)
+    outer_r =int((radius + error) / bin_space)
+    inner_bins = int((radius - error) / bin_space)
+    xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
+    window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
+
+    center = [int(outer_bins) -1, int(outer_bins)-1, int(outer_bins)-1]
+    dist = np.asarray(distance(center, window))
+    dist[dist < outer_bins] = -1
+    dist[dist > 0] = 0
+    dist[dist < 0] = 1
+
+    dist = dist.reshape((outer_bins * 2 - 1, outer_bins * 2 - 1, outer_bins * 2 - 1))
+    return dist
 
 
 def kernel(radius: [float, int], bin_space: [float, int], error=-1):

@@ -281,7 +281,7 @@ def my_blob_dog(image, min_sigma=1, max_sigma=50, sigma_ratio=1.6, threshold=2.0
     return _prune_blobs(lm, overlap)
 
 
-def dog(data, threshold, type_, blob_size):
+def dog(data, threshold, type_, blob_size, rms_factor):
     # # hard_thres = util.local_thres(data, 20) / 2
     median = np.percentile(data, 50)
 
@@ -296,7 +296,7 @@ def dog(data, threshold, type_, blob_size):
         distr = (data - threshold).flatten()
         distr = np.nan_to_num(distr)
         rms = np.sqrt(np.nanmean(distr ** 2))
-        factor = np.nanmean(distr) + 2 * rms
+        factor = np.nanmean(distr) + rms * 1.3
         data -= np.nan_to_num(threshold)
         blobs = my_blob_dog(data, min_sigma=1, max_sigma=blob_size, threshold=factor)
         return blobs[:, :3]
