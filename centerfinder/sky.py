@@ -461,18 +461,23 @@ class Sky:
         r_bins = int(radius / self.space_3d)
         r_bins += 1
 
-        # get the sub-array centered at 'center'
-        subgrid = self.get_galaxy_grid()[x-r_bins:x+r_bins, y-r_bins:y+r_bins, z-r_bins:z+r_bins]
-        rim_list = []
-        center = r_bins
-        r_bins -= 1
-        for idx, val in np.ndenumerate(subgrid):
-            dist = util.distance(idx, [center, center, center])
-            if r_bins - 1 < dist < r_bins + 1 and val > 0:
-                rim_list.append(idx)
-            else:
-                subgrid[idx] = 0
-        if abs_idx:
-            rim_list = [(r[0]+x, r[1]+y, r[2]+z) for r in rim_list]
+        # pad grid in case of indexOutOfBound
+        grid = np.pad(self.get_galaxy_grid(), r_bins, mode='constant', constant_values=0)
 
+        # get the sub-array centered at 'center'
+        subgrid = grid[x:x + r_bins * 2, y:y + r_bins * 2, z:z + r_bins * 2]
+
+        rim_list = []
+        c = r_bins
+        r_bins -= 1
+
+        for idx, val in np.ndenumerate(subgrid):
+            dist = util.distance(idx, [c, c, c])
+            if r_bins - 1 < dist < r_bins + 1 and val > 0:
+                # get relative index to the center
+                rel_idx = [i - c for i in idx]
+                rim_list.append(rel_idx)
+        subgrid[c, c, c] = -1
+        if abs_idx:
+            rim_list = [(r[0] + x, r[1] + y, r[2] + z) for r in rim_list]
         return np.asarray(rim_list)
