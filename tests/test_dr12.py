@@ -17,13 +17,15 @@ def read_fits(filename):
 
 
 def test_vote(filename):
-    sky_ = sky.Sky(read_fits(filename), 5)
-    # sky_.find_center(radius=108, blob_size=3, type_='diff')
-    sky_.vote(radius=108)
-    path = filename.split('.')[-2].split('/')[-1]
-    path = '../models/' + path + '_108'
-    print(path, filename)
-    util.pickle_sky(sky_, path)
+
+    for radius in range(96, 120, 3):
+        sky_ = sky.Sky(read_fits(filename), 5)
+        # sky_.find_center(radius=108, blob_size=3, type_='diff')
+        sky_.vote(radius=radius)
+        path = filename.split('.')[-2].split('/')[-1]
+        path = '../models/' + path + '_' + str(radius)
+        print(path, filename)
+        util.pickle_sky(sky_, path)
 
 
 test_vote('../data/galaxy_DR12v5_CMASS_South.fits')
