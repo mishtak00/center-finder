@@ -28,4 +28,26 @@ def test_vote(filename):
         util.pickle_sky(sky_, path)
 
 
-test_vote('../data/galaxy_DR12v5_CMASS_South.fits')
+def test_blob(filename, radius):
+    sky_ = util.unpickle_sky(filename)
+    if not isinstance(sky_, sky.Sky):
+        raise ValueError("Object is of type " + type(sky_))
+    sky_.blobs_thres(radius=radius, blob_size=3, type_='difference')
+    util.pickle_sky(sky_, filename)
+    center_num = len(sky_.centers)
+    with open('cmass_south_stat.txt', 'w+') as f:
+        f.write(str(radius))
+        f.write('\n')
+        f.write(str(center_num))
+        f.write('\n')
+        f.write(str(radius))
+        f.write('\n---------------------------------------\n')
+
+
+def scan_radius(filename):
+    for radius in range(96, 120, 3):
+        fname = filename + '_' + str(radius)
+        test_blob(fname, radius)
+
+
+scan_radius('../models/galaxy_DR12v5_CMASS_South')
