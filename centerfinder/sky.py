@@ -204,7 +204,7 @@ class Sky:
         self.grid[:, :, 0] = 0
         if error == -1:
             error = self.space_3d
-        # threshold = self.get_threshold(radius)
+        #threshold = self.get_threshold(radius)
         threshold = util.local_thres(self.grid, 40)
         blobs = dog(self.grid, threshold, type_, blob_size, rms_factor)
         sys.stderr.write('***************** blob finished *****************\n')
@@ -242,6 +242,8 @@ class Sky:
             self.centers = np.asarray(confirmed)
             sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
 
+
+
     def eval(self):
         """
         Evaluate center-finding results
@@ -250,25 +252,36 @@ class Sky:
             center_true: number of true centers within 18 Mpcs to nearest found center
         """
         if len(self.centers) == 0:
-            return [], 0
+            return [], 0, 0
         centers_d = self.get_centers()
         centers_d = np.asarray(centers_d)
         distribution = []
         centers_true = 0
+        centers_f_true = 0
 
         # calculate centers_true
-        center_f_grid = self.get_found_center_grid()
-        center_f_grid = util.conv(center_f_grid, util.distance_kernel(18, self.space_3d))
+        center_f = self.get_found_center_grid()
+        #util.plot_grid(center_f)
+        center_f_grid = util.conv(center_f, util.distance_kernel(18, self.space_3d))
+        center_f_grid[center_f_grid < .5] = 0
+
+        center_grid = util.conv(self.get_center_grid(), util.distance_kernel(18, self.space_3d))
+        center_grid[center_grid < .5] = 0
+
+        # plt.imshow(center_f_grid[:, :, 100])
+        # plt.show()
         for center in self.get_centers(grid=True):
             if center_f_grid[center[0], center[1], center[2]] > 0:
                 centers_true += 1
 
         # calculate distribution
         for center in self.centers:
-            dist_2 = np.sum((centers_d[:, :3] - center[:3]) ** 2, axis=1)
-            nearest_dist = np.min(dist_2) ** .5
-            distribution.append(nearest_dist)
-        return distribution, centers_true
+            c = self._coord_to_grid(center)
+            if center_grid[c[0], c[1], c[2]] > 0:
+                centers_f_true += 1
+        return distribution, centers_true, centers_f_true
+
+
 
     def draw_sphere(self, point, radius, error=-1):
         """
@@ -418,6 +431,7 @@ class Sky:
         else:
             plt.show()
 
+
     def get_threshold(self, radius):
         """
         Threshold from ra-dec and z bins (2d and 1d bins)
@@ -443,10 +457,13 @@ class Sky:
 
         # scale threshold
         median = np.median(thres_grid)
-        thres_grid[thres_grid < median] = np.nan
-        factor = abs(np.median(self.grid) / median)
-        #thres_grid *= factor
+        print('threshold median: ', median)
+        thres_grid[thres_grid < median] = median
+        factor = abs(np.percentile(self.grid, 99) / np.percentile(thres_grid, 99))
+        thres_grid *= factor
+        thres_grid = gaussian_filter(thres_grid, sigma=5)
         return thres_grid
+
 
     def get_voters(self, center, radius, abs_idx=False):
         """
@@ -481,3 +498,33 @@ class Sky:
         if abs_idx:
             rim_list = [(r[0] + x, r[1] + y, r[2] + z) for r in rim_list]
         return np.asarray(rim_list)
+
+
+    def vote_2d_1d(self) -> None:
+        """
+        Voting procedure for 2d bin (sigma-pi) and 1d bin (z)
+        :return:
+        """
+        x, y, z = [np.arange(self.bins_3d[i]) for i in range(3)]
+        grid = np.vstack(np.meshgrid(x, y, z, indexing='ij')).reshape(3, -1)
+        grid = self._grid_to_coord(grid)
+        ra, dec, z = util.cartesian_to_sky(grid)
+
+        new_idx = self._coord_to_grid_2d([ra, dec, z])
+        votes = np.expand_dims(self.grid.flatten(), axis=0)
+        new_idx = np.concatenate((new_idx, votes), axis=0)
+        for idx in new_idx.T:
+            self.grid_2d[int(idx[0]), int(idx[1])] += idx[3]
+            self.grid_1d[(int(idx[2]))] += idx[3]
+        self.grid_2d[-1] = self.grid_2d[-2]
+        self.grid_2d[:, -1] = self.grid_2d[:, -2]
+        self.grid_1d[-1] = self.grid_1d[-2]
+        # util.plot_threshold(self.grid_2d)
+        # plt.show()
+        # plt.plot(self.grid_1d)
+        # plt.show()
+        self.grid_2d /= np.sum(self.grid_2d)
+        self.grid_1d /= np.sum(self.grid_1d)
+        # thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
+        # thres_grid = thres_grid.reshape(self.grid.shape)
+

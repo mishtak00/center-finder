@@ -255,11 +255,11 @@ def my_blob_dog(image, min_sigma=1, max_sigma=50, sigma_ratio=1.6, threshold=2.0
     if isinstance(threshold, np.ndarray):
         local_maxima = my_peak_local_max(image_cube, threshold_abs=threshold[:, :, :, np.newaxis],
                                          footprint=np.ones((3,) * (image.ndim + 1)),
-                                         exclude_border=exclude_border, num_peaks=1000)
+                                         exclude_border=exclude_border)
     else:
         local_maxima = my_peak_local_max(image_cube, threshold_abs=threshold,
                                          footprint=np.ones((3,) * (image.ndim + 1)),
-                                         exclude_border=exclude_border, num_peaks=1000)
+                                         exclude_border=exclude_border)
     # Catch no peaks
     if local_maxima.size == 0:
         return np.empty((0, 3))
@@ -289,15 +289,14 @@ def dog(data, threshold, type_, blob_size, rms_factor):
         distr = (data / threshold).flatten()
         distr = np.nan_to_num(distr)
         rms = np.sqrt(np.nanmean(distr ** 2))
-        factor = np.nanmean(distr) + rms
+        factor = np.nanmean(distr) + rms * rms_factor
         blobs = my_blob_dog(data / threshold, min_sigma=1, max_sigma=blob_size, threshold=factor)
         return blobs[:, :3]
     elif type_ == 'difference':
         distr = (data - threshold).flatten()
         distr = np.nan_to_num(distr)
         rms = np.sqrt(np.nanmean(distr ** 2))
-        factor = np.nanmean(distr) + rms * 1.3
-        data -= np.nan_to_num(threshold)
-        blobs = my_blob_dog(data, min_sigma=1, max_sigma=blob_size, threshold=factor)
+        factor = np.nanmean(distr) + rms * rms_factor
+        blobs = my_blob_dog(data-np.nan_to_num(threshold), min_sigma=1, max_sigma=blob_size, threshold=factor)
         return blobs[:, :3]
 

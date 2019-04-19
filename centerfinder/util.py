@@ -152,7 +152,7 @@ def kernel(radius: [float, int], bin_space: [float, int], error=-1):
     dist[dist == np.inf] = -10
     dist[dist > outer_r] = 0
     dist[dist > 0] = 1
-    dist[dist == -10] = 10
+    dist[dist == -10] = 0
 
     dist = dist.reshape((outer_bins * 2 - 1, outer_bins * 2 - 1, outer_bins * 2 - 1))
 
