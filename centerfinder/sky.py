@@ -1,14 +1,15 @@
-import numpy as np
 import sys
+
 import math
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import rc
 from mpl_toolkits.mplot3d import Axes3D
-from .blob import dog
-from scipy.stats import norm
 from scipy.ndimage import gaussian_filter
-from typing import List
+from scipy.stats import norm
+
 from . import util
+from .blob import dog
 
 
 class Sky:
@@ -204,7 +205,7 @@ class Sky:
         self.grid[:, :, 0] = 0
         if error == -1:
             error = self.space_3d
-        #threshold = self.get_threshold(radius)
+        # threshold = self.get_threshold(radius)
         threshold = util.local_thres(self.grid, 40)
         blobs = dog(self.grid, threshold, type_, blob_size, rms_factor)
         sys.stderr.write('***************** blob finished *****************\n')
@@ -242,8 +243,6 @@ class Sky:
             self.centers = np.asarray(confirmed)
             sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
 
-
-
     def eval(self):
         """
         Evaluate center-finding results
@@ -261,7 +260,7 @@ class Sky:
 
         # calculate centers_true
         center_f = self.get_found_center_grid()
-        #util.plot_grid(center_f)
+        # util.plot_grid(center_f)
         center_f_grid = util.conv(center_f, util.distance_kernel(18, self.space_3d))
         center_f_grid[center_f_grid < .5] = 0
 
@@ -270,6 +269,10 @@ class Sky:
 
         # plt.imshow(center_f_grid[:, :, 100])
         # plt.show()
+        for center in self.get_centers():
+            dist_2 = np.sum((center[:3] - np.vstack(self.centers)) ** 2, axis=1)
+            nearest_dist = np.min(dist_2) ** .5
+            distribution.append(nearest_dist)
         for center in self.get_centers(grid=True):
             if center_f_grid[center[0], center[1], center[2]] > 0:
                 centers_true += 1
@@ -280,8 +283,6 @@ class Sky:
             if center_grid[c[0], c[1], c[2]] > 0:
                 centers_f_true += 1
         return distribution, centers_true, centers_f_true
-
-
 
     def draw_sphere(self, point, radius, error=-1):
         """
@@ -401,7 +402,9 @@ class Sky:
         """
         rc('font', family='serif')
         # rc('font', size=16)
-        distr, true_centers = self.eval()
+        ev = self.eval()
+        distr = ev[0]
+        true_centers = ev[1]
         mean, std = norm.fit(distr)
         found_eff = len([d for d in distr if d <= 18])
         efficiency = found_eff / centers_generated
@@ -431,7 +434,6 @@ class Sky:
         else:
             plt.show()
 
-
     def get_threshold(self, radius):
         """
         Threshold from ra-dec and z bins (2d and 1d bins)
@@ -449,21 +451,22 @@ class Sky:
         drdz = norm * (1 - 3 * z * Omega_M / 2)
         dVang = radius ** 2 * drdz * self.space_1d * np.cos(np.radians(dec)) * self.space_2d ** 2
         weight = dVD / dVang
+        weight = weight.reshape(self.grid.shape)
 
         # combine 2d and 1d grids into 3d grid
         new_idx = self._coord_to_grid_2d([ra, dec, z])
-        thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
+        thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
         thres_grid = thres_grid.reshape(self.grid.shape)
+        thres_grid /= np.sum(thres_grid)
 
         # scale threshold
-        median = np.median(thres_grid)
-        print('threshold median: ', median)
-        thres_grid[thres_grid < median] = median
-        factor = abs(np.percentile(self.grid, 99) / np.percentile(thres_grid, 99))
-        thres_grid *= factor
+        galaxy_num = self.xyz_list.shape[1]
+        print(galaxy_num)
+        thres_grid *= galaxy_num
+        print(np.sum(util.kernel(radius, self.space_3d)))
+        thres_grid *= np.sum(util.kernel(radius, self.space_3d))
         thres_grid = gaussian_filter(thres_grid, sigma=5)
-        return thres_grid
-
+        return thres_grid, weight
 
     def get_voters(self, center, radius, abs_idx=False):
         """
@@ -499,7 +502,6 @@ class Sky:
             rim_list = [(r[0] + x, r[1] + y, r[2] + z) for r in rim_list]
         return np.asarray(rim_list)
 
-
     def vote_2d_1d(self) -> None:
         """
         Voting procedure for 2d bin (sigma-pi) and 1d bin (z)
@@ -519,12 +521,3 @@ class Sky:
         self.grid_2d[-1] = self.grid_2d[-2]
         self.grid_2d[:, -1] = self.grid_2d[:, -2]
         self.grid_1d[-1] = self.grid_1d[-2]
-        # util.plot_threshold(self.grid_2d)
-        # plt.show()
-        # plt.plot(self.grid_1d)
-        # plt.show()
-        self.grid_2d /= np.sum(self.grid_2d)
-        self.grid_1d /= np.sum(self.grid_1d)
-        # thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]] * weight
-        # thres_grid = thres_grid.reshape(self.grid.shape)
-
