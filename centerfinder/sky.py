@@ -47,6 +47,7 @@ class Sky:
 
         '''initialize bins'''
         self.grid = np.zeros(self.bins_3d)
+        self.exp = np.zeros(self.bins_3d)
         self.grid_2d = np.zeros(self.bins_2d)
         self.grid_1d = np.zeros(self.bins_1d)
 
@@ -205,8 +206,8 @@ class Sky:
         self.grid[:, :, 0] = 0
         if error == -1:
             error = self.space_3d
-        # threshold = self.get_threshold(radius)
-        threshold = util.local_thres(self.grid, 40)
+        threshold = self.get_threshold(radius)
+        # threshold = util.local_thres(self.grid, 40)
         blobs = dog(self.grid, threshold, type_, blob_size, rms_factor)
         sys.stderr.write('***************** blob finished *****************\n')
         self.centers = np.asarray(blobs)
@@ -466,7 +467,8 @@ class Sky:
         print(np.sum(util.kernel(radius, self.space_3d)))
         thres_grid *= np.sum(util.kernel(radius, self.space_3d))
         thres_grid = gaussian_filter(thres_grid, sigma=5)
-        return thres_grid, weight
+        self.exp = thres_grid
+        return thres_grid
 
     def get_voters(self, center, radius, abs_idx=False):
         """
