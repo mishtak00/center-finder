@@ -1,10 +1,10 @@
+import pickle
+
 import numpy as np
 from astropy.io import fits
-import pickle
-import matplotlib.pyplot as plt
-from centerfinder import util
-from centerfinder import blob
+
 from centerfinder import sky
+from centerfinder import util
 
 
 def read_fits(filename):
@@ -28,15 +28,15 @@ def test_vote(filename):
         print(path, filename)
         util.pickle_sky(sky_, path)
 
-def test_blob(sky_, radius, rms_factor=1, filename=None):
 
+def test_blob(sky_, radius, rms_factor=1, filename=None):
     sky_.blobs_thres(radius=radius, blob_size=5, type_='difference', rms_factor=rms_factor)
     util.pickle_sky(sky_, filename)
     center_num = len(sky_.centers)
     ev = sky_.eval()
     eff = ev[1]
     center_f_true = ev[2]
-    with open(filename+ '_rms.txt', 'w') as f:
+    with open(filename + '_rms.txt', 'w') as f:
         f.write(str(center_num))
         f.write('\n')
         f.write(str(rms_factor))
@@ -53,7 +53,7 @@ def scan_rms(filename):
     sky_ = util.unpickle_sky(filename)
     if not isinstance(sky_, sky.Sky):
         raise ValueError("Object is of type " + type(sky_))
-    for rms in np.arange(0.7, 0.9, 0.1):
+    for rms in np.arange(0.9, 2, 0.1):
         print(rms)
         tmp = test_blob(sky_, 108, rms_factor=rms, filename=filename)
         lst.append(tmp)
@@ -72,16 +72,11 @@ def scan_radius(filename):
             tmp = test_blob(sky_, radius, rms_factor=rms, filename=fname)
             lst.append(tmp)
     lst = np.asarray(lst)
-    with open(filename + 'set5_radius_pickle_0', 'wb') as f:
+    with open(filename + 'set5_radius_pickle', 'wb') as f:
         pickle.dump(lst, f)
 
-test_vote('../data/cf_set_5_mock_1.fits')
-test_vote('../data/cf_set_5_mock_2.fits')
-test_vote('../data/cf_set_5_mock_3.fits')
-test_vote('../data/cf_set_5_mock_4.fits')
-scan_radius('../models/cf_set_5_mock_1')
-scan_radius('../models/cf_set_5_mock_2')
-scan_radius('../models/cf_set_5_mock_3')
-scan_radius('../models/cf_set_5_mock_4')
 
-
+scan_rms('../models/cf_set_5_mock_1')
+scan_rms('../models/cf_set_5_mock_2')
+scan_rms('../models/cf_set_5_mock_3')
+scan_rms('../models/cf_set_5_mock_4')
