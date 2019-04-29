@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import rc
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.ndimage import gaussian_filter
-from scipy.stats import norm
+from scipy.stats import norm, linregress
 
 from . import util
 from .blob import dog
@@ -309,6 +309,11 @@ class Sky:
         return sphere
 
     def get_centers(self, grid=False):
+        '''
+        Get the generated centers as an ndarray
+        :param grid: set it to true to return grid indices rather than coordinates
+        :return:
+        '''
         ret = np.vstack([point for point in self.xyz_list.T if point[3] == 2])
         if grid:
             return np.asarray(self._coord_to_grid(ret.T)).T
@@ -436,6 +441,7 @@ class Sky:
             plt.show()
 
     def get_threshold(self, radius):
+        # TODO: currently just a temporary fix of the obs-exp slope
         """
         Threshold from ra-dec and z bins (2d and 1d bins)
         :param radius:
@@ -459,6 +465,9 @@ class Sky:
         thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
         thres_grid = thres_grid.reshape(self.grid.shape)
         thres_grid /= np.sum(thres_grid)
+        print(np.sum(thres_grid))
+        plt.imshow(weight[:, :, 50])
+        plt.show()
 
         # scale threshold
         galaxy_num = self.xyz_list.shape[1]
@@ -466,8 +475,16 @@ class Sky:
         thres_grid *= galaxy_num
         print(np.sum(util.kernel(radius, self.space_3d)))
         thres_grid *= np.sum(util.kernel(radius, self.space_3d))
-        thres_grid = gaussian_filter(thres_grid, sigma=5)
-        self.exp = thres_grid
+        thres_grid *= weight
+        thres_grid = np.nan_to_num(thres_grid)
+        thres_grid = gaussian_filter(thres_grid, sigma=1)
+
+        grid = self.grid.flatten()
+        exp = thres_grid.flatten()
+
+        slope, intercept, r_value, p_value, std_err = linregress(grid, exp)
+        print(slope)
+        self.exp = thres_grid / slope
         return thres_grid
 
     def get_voters(self, center, radius, abs_idx=False):
