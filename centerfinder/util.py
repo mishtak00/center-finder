@@ -1,12 +1,13 @@
-import numpy as np
-import math
-import sys
-import matplotlib.pyplot as plt
-from typing import List
-from matplotlib import rc
-from astropy.io import fits
 import pickle
+import sys
+from typing import List
+
+import math
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.io import fits
 from scipy.signal import fftconvolve
+
 from . import sky
 
 sys.modules['sky'] = sky
@@ -104,22 +105,21 @@ def cartesian_to_sky(points: np.ndarray):
 
 
 def distance_kernel(radius: [float, int], bin_space: [float, int], error=-1):
-    '''
-
+    """
     :param radius: distance
     :param bin_space:
     :param error:
     :return:
-    '''
+    """
     if error == -1:
         error = bin_space / 2
     outer_bins = int((radius + error * 5) / bin_space)
-    outer_r =int((radius + error) / bin_space)
+    outer_r = int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
     xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
     window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
-    center = [int(outer_bins) -1, int(outer_bins)-1, int(outer_bins)-1]
+    center = [int(outer_bins) - 1, int(outer_bins) - 1, int(outer_bins) - 1]
     dist = np.asarray(distance(center, window))
     dist[dist < outer_bins] = -1
     dist[dist > 0] = 0
@@ -140,23 +140,23 @@ def kernel(radius: [float, int], bin_space: [float, int], error=-1):
     if error == -1:
         error = bin_space
     outer_bins = int((radius + error * 5) / bin_space)
-    outer_r =int((radius + error) / bin_space)
+    outer_r = int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
     xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
     window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
-    center = [int(outer_bins) -1, int(outer_bins)-1, int(outer_bins)-1]
-    dist = np.asarray(distance(center, window))
-    dist[dist < 2] = np.inf
-    dist[dist < inner_bins] = 0
-    dist[dist == np.inf] = -10
-    dist[dist > outer_r] = 0
-    dist[dist > 0] = 1
-    dist[dist == -10] = 0
+    center = [int(outer_bins) - 1, int(outer_bins) - 1, int(outer_bins) - 1]
+    kernel = np.asarray(distance(center, window))
+    kernel[kernel < 2] = np.inf
+    kernel[kernel < inner_bins] = 0
+    kernel[kernel == np.inf] = -10
+    kernel[kernel > outer_r] = 0
+    kernel[kernel > 0] = 1
+    kernel[kernel == -10] = 0
 
-    dist = dist.reshape((outer_bins * 2 - 1, outer_bins * 2 - 1, outer_bins * 2 - 1))
+    kernel = kernel.reshape((outer_bins * 2 - 1, outer_bins * 2 - 1, outer_bins * 2 - 1))
 
-    return dist
+    return kernel
 
 
 def draw_sphere(point, radius, bin_space, error=-1):
@@ -248,7 +248,7 @@ def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None
     if 3 <= c_generated.shape[1] <= 4:
         c_generated = c_generated.T
 
-    #data -= thres_grid
+    # data -= thres_grid
     data1 = np.copy(data)
     vmin = np.min(np.nan_to_num(data))
     vmax = np.max(np.nan_to_num(data))
@@ -256,29 +256,29 @@ def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None
     # vmax = np.percentile(np.nan_to_num(data), 99)
     print(vmin, vmax)
     data[c_found[0], c_found[1], c_found[2]] = vmax * 1.5
-    #data[c_found[0], c_found[1], c_found[2]-1] = vmax * 1.5
-    #data[c_found[0], c_found[1], c_found[2]+1] = -5
+    # data[c_found[0], c_found[1], c_found[2]-1] = vmax * 1.5
+    # data[c_found[0], c_found[1], c_found[2]+1] = -5
     # data = local_thres(data, 2)
     #
     data1[c_generated[0], c_generated[1], c_generated[2]] = vmax * 1.5
-    #data1[c_generated[0], c_generated[1], c_generated[2]-1] = vmax * 1.5
-    #data1[c_generated[0], c_generated[1], c_generated[2]+1] = -5
+    # data1[c_generated[0], c_generated[1], c_generated[2]-1] = vmax * 1.5
+    # data1[c_generated[0], c_generated[1], c_generated[2]+1] = -5
     # data1 = local_thres(data1, 2)
     vmax *= 1.2
 
     f, axarr = plt.subplots(2, 3)
-    im = axarr[0, 0].imshow(data[:, :, section*3], vmin=vmin, vmax=vmax)
-    im = axarr[1, 0].imshow(data1[:, :, section*3], vmin=vmin, vmax=vmax)
-    im = axarr[0, 1].imshow(data[:, :, section*4], vmin=vmin, vmax=vmax)
-    im = axarr[1, 1].imshow(data1[:, :, section*4], vmin=vmin, vmax=vmax)
-    im = axarr[0, 2].imshow(data[:, :, section*5], vmin=vmin, vmax=vmax)
-    im = axarr[1, 2].imshow(data1[:, :, section*5], vmin=vmin, vmax=vmax)
-    #cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
-    #f.colorbar(im, ax=axarr.ravel().tolist())
+    im = axarr[0, 0].imshow(data[:, :, section * 3], vmin=vmin, vmax=vmax)
+    im = axarr[1, 0].imshow(data1[:, :, section * 3], vmin=vmin, vmax=vmax)
+    im = axarr[0, 1].imshow(data[:, :, section * 4], vmin=vmin, vmax=vmax)
+    im = axarr[1, 1].imshow(data1[:, :, section * 4], vmin=vmin, vmax=vmax)
+    im = axarr[0, 2].imshow(data[:, :, section * 5], vmin=vmin, vmax=vmax)
+    im = axarr[1, 2].imshow(data1[:, :, section * 5], vmin=vmin, vmax=vmax)
+    # cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
+    # f.colorbar(im, ax=axarr.ravel().tolist())
     # for ax, col in zip(axarr[0], cols):
     #     ax.set_title(col)
 
-    #plt.colorbar(im, ax=axarr.ravel().tolist())
+    # plt.colorbar(im, ax=axarr.ravel().tolist())
     plt.tight_layout()
     plt.show()
 

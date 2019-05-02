@@ -11,7 +11,7 @@ def test_pickle():
     util.pickle_sky(sky_, filename)
 
     sky_1 = util.unpickle_sky(filename)
-    sky_1.blobs_thres(radius=108, blob_size=3, type_='difference')
+    sky_1.find_blob(radius=108, blob_size=3, type_='difference')
     os.remove(filename)
 
 
@@ -19,4 +19,4 @@ def test_blob():
     sky_ = sky.Sky(util.load_data('data/cf_mock_catalog_83C_120R.fits'), 5)
     # expected radius should be default to 108
     sky_.vote(radius=108)
-    sky_.blobs_thres(radius=108, blob_size=3, type_='difference')
+    sky_.find_blob(radius=108, blob_size=3, type_='difference')

@@ -13,27 +13,38 @@ from .blob import dog
 
 
 class Sky:
+    """
+    Sky fields:
+    - data_sky_coord:
+    - data_cartesian:
+    - range_3d/2d/1d:
+    - space_3d/2d/1d:
+    - bins_3d/2d/1d:
+    - grid_3d/2d/1d:
+    - exp:
+    - centers:
+    """
     def __init__(self, data_list: np.ndarray, space_3d) -> None:
         """  
         :param data_list: from files
         :param space_3d: 3-d bin space
         """
         if len(data_list) >= 3:
-            self.data_list = data_list
+            self.data_sky_coord = data_list
         else:
             raise ValueError('data list has wrong dimension')
         self.centers = []
-        self.xyz_list = util.sky_to_cartesian(data_list)
+        self.data_cartesian = util.sky_to_cartesian(data_list)
 
         ''' initialize params'''
         self.range_3d = []
         self.range_2d = []
         self.range_1d = []
         for i in range(3):
-            self.range_3d.append((min(self.xyz_list[i]), max(self.xyz_list[i])))
+            self.range_3d.append((min(self.data_cartesian[i]), max(self.data_cartesian[i])))
         for i in range(2):
-            self.range_2d.append((min(self.data_list[i]), max(self.data_list[i])))
-        self.range_1d = (min(self.data_list[2]), max(self.data_list[2]))
+            self.range_2d.append((min(self.data_sky_coord[i]), max(self.data_sky_coord[i])))
+        self.range_1d = (min(self.data_sky_coord[2]), max(self.data_sky_coord[2]))
 
         self.space_3d = space_3d
         self.bins_3d = [math.ceil((self.range_3d[i][1] - self.range_3d[i][0]) / self.space_3d) for i in range(3)]
@@ -46,7 +57,7 @@ class Sky:
         self.bins_1d = self.avg_bins * 2
 
         '''initialize bins'''
-        self.grid = np.zeros(self.bins_3d)
+        self.grid_3d = np.zeros(self.bins_3d)
         self.exp = np.zeros(self.bins_3d)
         self.grid_2d = np.zeros(self.bins_2d)
         self.grid_1d = np.zeros(self.bins_1d)
@@ -60,10 +71,15 @@ class Sky:
                'dec ra range: {}\n' \
                'z range: {}\n' \
                '3d bin space: {}'.format(
-            self.range_3d, self.range_2d,
-            self.range_1d, self.space_3d)
+                self.range_3d, self.range_2d,
+                self.range_1d, self.space_3d)
 
     def _coord_to_grid(self, point):
+        """
+        Convert coordinates to grid indices
+        :param point: can be a point (3-tuple) or an nd-array of shape (3, n)
+        :return: same shape as input
+        """
         if len(point) < 3:
             raise ValueError('Point (list) has to have at least length 3')
         if isinstance(point[0], np.ndarray):
@@ -83,6 +99,12 @@ class Sky:
         return index
 
     def _coord_to_grid_2d(self, point):
+        """
+        Convert coordinates to 2-d grid indices
+        Used in vote_2d_1d() and get_threshold()
+        :param point: can be a point (3-tuple) or an nd-array of shape (3, n)
+        :return: same shape as input
+        """
         if len(point) < 3:
             raise ValueError('Point (list) has to have at least length 3')
         if isinstance(point[0], np.ndarray):
@@ -112,6 +134,11 @@ class Sky:
         return index.astype(int)
 
     def _grid_to_coord(self, point):
+        """
+        Convert grid indices to coordinates
+        :param point: can be a point (3-tuple) or an nd-array of shape (3, n)
+        :return: same shape as input
+        """
         if len(point) != 3:
             raise ValueError('Grid coordinate has to have dimension 3; get {:d}'.format(len(point)))
         if isinstance(point[0], np.ndarray):
@@ -129,19 +156,24 @@ class Sky:
     def get_center_grid(self):
         """
         Create a 3-d grid with only true centers in it
+        i.e. an nd-array where value = 1 at true centers and 0 elsewhere
+        Usually for convolution purpose, e.g. with a util.distance kernel
+
         :return: ndarray (shape = self.grid.shape)
         """
-        center_grid = np.zeros(self.grid.shape)
-        centers = self.get_centers(grid=True).T
+        center_grid = np.zeros(self.grid_3d.shape)
+        centers = self.get_generated_centers(grid=True).T
         center_grid[centers[0], centers[1], centers[2]] = 1
         return center_grid
 
     def get_found_center_grid(self):
         """
         Create a 3-d grid with only found centers in it
+        i.e. an nd-array where value = 1 at found centers and 0 elsewhere
+        Usually for convolution purpose, e.g. with a util.distance kernel
         :return: ndarray (shape = self.grid.shape)
         """
-        center_grid = np.zeros(self.grid.shape)
+        center_grid = np.zeros(self.grid_3d.shape)
         centers = self.centers.T
         centers = self._coord_to_grid(centers)
         center_grid[centers[0], centers[1], centers[2]] = 1
@@ -150,10 +182,12 @@ class Sky:
     def get_galaxy_grid(self):
         """
         Create a 3-d grid with all galaxies in it
+        i.e. an nd-array where value = 1 at galaxy locations and 0 elsewhere
+        Usually for convolution purpose, e.g. with a util.distance kernel
         :return: ndarray (shape = self.grid.shape)
         """
-        galaxy_grid = np.zeros(self.grid.shape)
-        grids = self._coord_to_grid(self.xyz_list)
+        galaxy_grid = np.zeros(self.grid_3d.shape)
+        grids = self._coord_to_grid(self.data_cartesian)
         galaxy_grid[grids[0], grids[1], grids[2]] = 1
         return galaxy_grid
 
@@ -171,27 +205,26 @@ class Sky:
         :return:
         """
         self.vote(radius)
-        self.blobs_thres(radius, blob_size, type_, error)
+        self.find_blob(radius, blob_size, type_, error)
         self.confirm_center()
 
     def vote(self, radius: float) -> None:
-        # TODO: fix 2d and 1d binning
         """
         Core function; does the voting procedure as a 3-D convolution
         :param radius: BAO radius
         :return: None
         """
-        grids = self._coord_to_grid(self.xyz_list)
-        self.grid[grids[0], grids[1], grids[2]] += 1
+        grids = self._coord_to_grid(self.data_cartesian)
+        self.grid_3d[grids[0], grids[1], grids[2]] += 1
         w = util.kernel(radius, self.space_3d)
-        self.grid = util.conv(self.grid, w)
+        self.grid_3d = util.conv(self.grid_3d, w)
 
-    def blobs_thres(self,
-                    radius: [int, float],
-                    blob_size: int,
-                    type_: str,
-                    rms_factor=1.5,
-                    error=-1) -> None:
+    def find_blob(self,
+                  radius: [int, float],
+                  blob_size: int,
+                  type_: str,
+                  rms_factor=1.5,
+                  error=-1) -> None:
         """
         Find blobs on voted grid
         :param radius: expected BAO radius
@@ -201,28 +234,29 @@ class Sky:
         :param error: error allowed in fit_bao
         :return: None
         """
-        self.grid[0, :, :] = 0
-        self.grid[:, 0, :] = 0
-        self.grid[:, :, 0] = 0
+        self.grid_3d[0, :, :] = 0
+        self.grid_3d[:, 0, :] = 0
+        self.grid_3d[:, :, 0] = 0
         if error == -1:
             error = self.space_3d
         threshold = self.get_threshold(radius)
-        # threshold = util.local_thres(self.grid, 40)
-        blobs = dog(self.grid, threshold, type_, blob_size, rms_factor)
+        blobs = dog(self.grid_3d, threshold, type_, blob_size, rms_factor)
         sys.stderr.write('***************** blob finished *****************\n')
         self.centers = np.asarray(blobs)
-        sys.stderr.write('number of centers found (before confirming): {}\n'.format(len(blobs)))
-        #
+        sys.stderr.write('number of centers found (before confirming): {}\n'
+                         .format(len(blobs)))
+
         # filter out found centers > 18 Mpcs away from any galaxy
         gaus = util.conv(self.get_galaxy_grid(), util.distance_kernel(18, self.space_3d))
+        gaus[gaus < .5] = 0
         confirmed = []
         print(len(blobs))
         for c_grid in blobs:
             c_grid = [int(c) for c in c_grid]
             if gaus[c_grid[0], c_grid[1], c_grid[2]] > 0:
                 confirmed.append(self._grid_to_coord(c_grid))
+
         self.centers = np.asarray(confirmed)
-        print(self.centers.shape)
         self.centers = self.fit_bao(radius, error * 2)
         self.centers = np.asarray(self.centers)
         sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
@@ -244,41 +278,45 @@ class Sky:
             self.centers = np.asarray(confirmed)
             sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
 
-    def eval(self):
+    def eval(self, get_distribution=True):
         """
         Evaluate center-finding results
+        :param get_distribution:  set this to False when only used for computing efficiency/fake rate
         :return:
             distribution: of distances between each found center and its nearest true center
-            center_true: number of true centers within 18 Mpcs to nearest found center
+            centers_true: number of true centers within 18 Mpcs to nearest found center
+            centers_f_true: number of found centers within 18 Mpcs to nearest true center
         """
         if len(self.centers) == 0:
             return [], 0, 0
-        centers_d = self.get_centers()
+        centers_d = self.get_generated_centers()
         centers_d = np.asarray(centers_d)
         distribution = []
         centers_true = 0
         centers_f_true = 0
 
-        # calculate centers_true
+        # preparing the nd-arrays to convolve on
         center_f = self.get_found_center_grid()
-        # util.plot_grid(center_f)
         center_f_grid = util.conv(center_f, util.distance_kernel(18, self.space_3d))
-        center_f_grid[center_f_grid < .5] = 0
-
         center_grid = util.conv(self.get_center_grid(), util.distance_kernel(18, self.space_3d))
+
+        # clear up all small non-zero values
+        center_f_grid[center_f_grid < .5] = 0
         center_grid[center_grid < .5] = 0
 
-        # plt.imshow(center_f_grid[:, :, 100])
-        # plt.show()
-        for center in self.get_centers():
-            dist_2 = np.sum((center[:3] - np.vstack(self.centers)) ** 2, axis=1)
-            nearest_dist = np.min(dist_2) ** .5
-            distribution.append(nearest_dist)
-        for center in self.get_centers(grid=True):
+        # calculate distribution
+        if get_distribution:
+            for center in self.get_generated_centers():
+                dist_2 = np.sum((center[:3] - np.vstack(self.centers)) ** 2, axis=1)
+                nearest_dist = np.min(dist_2) ** .5
+                distribution.append(nearest_dist)
+
+        # calculate centers_true
+        for center in self.get_generated_centers(grid=True):
             if center_f_grid[center[0], center[1], center[2]] > 0:
                 centers_true += 1
 
-        # calculate distribution
+        # calculate centers_f_true
         for center in self.centers:
             c = self._coord_to_grid(center)
             if center_grid[c[0], c[1], c[2]] > 0:
@@ -305,16 +343,16 @@ class Sky:
         sphere = [point2 for point2 in sphere if
                   radius - error < util.distance(point, point2) < radius + error]
         sphere = np.array([self._coord_to_grid(p) for p in sphere]).T
-        self.grid[sphere[0], sphere[1], sphere[2]] += 1
+        self.grid_3d[sphere[0], sphere[1], sphere[2]] += 1
         return sphere
 
-    def get_centers(self, grid=False):
-        '''
+    def get_generated_centers(self, grid=False):
+        """
         Get the generated centers as an ndarray
         :param grid: set it to true to return grid indices rather than coordinates
         :return:
-        '''
-        ret = np.vstack([point for point in self.xyz_list.T if point[3] == 2])
+        """
+        ret = np.vstack([point for point in self.data_cartesian.T if point[3] == 2])
         if grid:
             return np.asarray(self._coord_to_grid(ret.T)).T
         else:
@@ -322,7 +360,7 @@ class Sky:
 
     def fit_bao(self, radius: [int, float], error: float) -> np.ndarray:
         ret = []
-        xyz = np.array(self.xyz_list)[:3].T
+        xyz = np.array(self.data_cartesian)[:3].T
         for center in self.centers:
             sphere = [p for p in xyz if
                       (util.distance(center, p) <= radius + error) and
@@ -352,7 +390,7 @@ class Sky:
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
-        centers_d = self.get_centers()
+        centers_d = self.get_generated_centers()
         ax.scatter(centers_d[:, 0], centers_d[:, 1], centers_d[:, 2], color='blue')
         for center in self.centers:
             ax.scatter(center[0], center[1], center[2], color='red')
@@ -360,9 +398,9 @@ class Sky:
         if show_rim:
             if not radius:
                 raise ValueError('Need radius')
-            ax.scatter(xs=self.xyz_list[0],
-                       ys=self.xyz_list[1],
-                       zs=self.xyz_list[2],
+            ax.scatter(xs=self.data_cartesian[0],
+                       ys=self.data_cartesian[1],
+                       zs=self.data_cartesian[2],
                        color='blue', alpha=0.1)
             for fit in self.centers:
                 sph = util.draw_sphere(fit, radius, self.space_3d)
@@ -388,11 +426,11 @@ class Sky:
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
-        centers_d = self.get_centers()
+        centers_d = self.get_generated_centers()
         ax.scatter(centers_d[:, 0], centers_d[:, 1], centers_d[:, 2], color='blue')
-        ax.scatter(xs=self.xyz_list[0],
-                   ys=self.xyz_list[1],
-                   zs=self.xyz_list[2],
+        ax.scatter(xs=self.data_cartesian[0],
+                   ys=self.data_cartesian[1],
+                   zs=self.data_cartesian[2],
                    color='blue', alpha=0.1)
         plt.show()
 
@@ -458,19 +496,19 @@ class Sky:
         drdz = norm * (1 - 3 * z * Omega_M / 2)
         dVang = radius ** 2 * drdz * self.space_1d * np.cos(np.radians(dec)) * self.space_2d ** 2
         weight = dVD / dVang
-        weight = weight.reshape(self.grid.shape)
+        weight = weight.reshape(self.grid_3d.shape)
 
         # combine 2d and 1d grids into 3d grid
         new_idx = self._coord_to_grid_2d([ra, dec, z])
         thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
-        thres_grid = thres_grid.reshape(self.grid.shape)
+        thres_grid = thres_grid.reshape(self.grid_3d.shape)
         thres_grid /= np.sum(thres_grid)
         print(np.sum(thres_grid))
         plt.imshow(weight[:, :, 50])
         plt.show()
 
         # scale threshold
-        galaxy_num = self.xyz_list.shape[1]
+        galaxy_num = self.data_cartesian.shape[1]
         print(galaxy_num)
         thres_grid *= galaxy_num
         print(np.sum(util.kernel(radius, self.space_3d)))
@@ -479,7 +517,7 @@ class Sky:
         thres_grid = np.nan_to_num(thres_grid)
         thres_grid = gaussian_filter(thres_grid, sigma=1)
 
-        grid = self.grid.flatten()
+        grid = self.grid_3d.flatten()
         exp = thres_grid.flatten()
 
         slope, intercept, r_value, p_value, std_err = linregress(grid, exp)
@@ -524,7 +562,7 @@ class Sky:
     def vote_2d_1d(self) -> None:
         """
         Voting procedure for 2d bin (sigma-pi) and 1d bin (z)
-        :return:
+        :return: None
         """
         x, y, z = [np.arange(self.bins_3d[i]) for i in range(3)]
         grid = np.vstack(np.meshgrid(x, y, z, indexing='ij')).reshape(3, -1)
@@ -532,7 +570,7 @@ class Sky:
         ra, dec, z = util.cartesian_to_sky(grid)
 
         new_idx = self._coord_to_grid_2d([ra, dec, z])
-        votes = np.expand_dims(self.grid.flatten(), axis=0)
+        votes = np.expand_dims(self.grid_3d.flatten(), axis=0)
         new_idx = np.concatenate((new_idx, votes), axis=0)
         for idx in new_idx.T:
             self.grid_2d[int(idx[0]), int(idx[1])] += idx[3]

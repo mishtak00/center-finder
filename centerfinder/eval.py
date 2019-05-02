@@ -1,20 +1,21 @@
-import numpy as np
-import pickle
-import matplotlib.pyplot as plt
-from matplotlib import rc
 from typing import Callable
+
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rc
+
 from . import sky
 from . import util
 
 
 def chi_sqr_kernel(radius: [float, int], bin_space: [float, int], error=-1) -> np.ndarray:
-    '''
+    """
     The kernel used in calculating chi-square
     :param radius: expected radius
     :param bin_space:
     :param error:
     :return: ndarray: convolution kernel
-    '''
+    """
     if error == -1:
         error = bin_space
     outer_bins = int((radius + error * 1) / bin_space)
@@ -31,7 +32,7 @@ def chi_sqr_kernel(radius: [float, int], bin_space: [float, int], error=-1) -> n
 
 
 def plot_over_radius(filename: str, center_num: int, func: Callable, radius_step=3, bin_space=5, label=None) -> None:
-    '''
+    """
     Given a function, plot its value over the radius
     :param filename: mock catalog
     :param center_num: number of generated centers in the mock
@@ -43,7 +44,7 @@ def plot_over_radius(filename: str, center_num: int, func: Callable, radius_step
     :param radius_step: step in scanning radius
     :param bin_space:
     :return: none
-    '''
+    """
     val_list = []
     for r in range(90, 130, radius_step):
         sky_ = sky.Sky(util.load_data(filename), bin_space)
@@ -98,18 +99,18 @@ def centers_found(sky_: sky.Sky, center_num: int = 0) -> int:
 
 
 def avg_chi_sqr(sky_: sky.Sky, radius) -> float:
-    '''
+    """
     The average chi-square of a sky
     :param sky_:
     :param radius: expected BAO radius
     :return: mean
-    '''
+    """
     return np.mean(chi_sqr(sky_, radius, true_center=True))
 
 
 def chi_sqr(sky_: sky.Sky, radius, true_center=True):
-    grid = np.zeros(sky_.grid.shape)
-    galaxies = sky_._coord_to_grid(sky_.xyz_list)
+    grid = np.zeros(sky_.grid_3d.shape)
+    galaxies = sky_._coord_to_grid(sky_.data_cartesian)
     grid[galaxies[0], galaxies[1], galaxies[2]] += 1
     gaus = util.local_thres(sky_.get_center_grid(), 18 / sky_.space_3d)
     confirmed = []
@@ -131,12 +132,12 @@ def chi_sqr(sky_: sky.Sky, radius, true_center=True):
 
 
 def plot_chi_sqr(sky_: sky.Sky, radius):
-    '''
+    """
     Plotting the chi-sqaure distribution, true centers vs. fake centers
     :param sky_: Sky
     :param radius: expected radius
     :return: none
-    '''
+    """
     true_list = chi_sqr(sky_, radius)
     fake_list = chi_sqr(sky_, radius, true_center=False)
     plt.hist([true_list, fake_list], bins=20, density=False)
