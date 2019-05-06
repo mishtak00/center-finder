@@ -233,7 +233,7 @@ def pickle_sky(sky_: sky, filename):
     return 0
 
 
-def unpickle_sky(filename):
+def unpickle_sky(filename) -> sky.Sky:
     with open(filename, 'rb') as f:
         sky_ = pickle.load(f)
     return sky_

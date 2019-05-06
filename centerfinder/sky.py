@@ -15,15 +15,16 @@ from .blob import dog
 class Sky:
     """
     Sky fields:
-    - data_sky_coord:
-    - data_cartesian:
-    - range_3d/2d/1d:
-    - space_3d/2d/1d:
-    - bins_3d/2d/1d:
-    - grid_3d/2d/1d:
-    - exp:
-    - centers:
+    - data_sky_coord: galaxies in sky coordinate, shaped (3, n) or (4, n) with 1 more row indicating center or rim
+    - data_cartesian: galaxies in cartesian coordinate, shaped (3, n) or (4, n)
+    - range_3d/2d/1d: list of tuples
+    - space_3d/2d/1d: int, indicating the bin space of each
+    - bins_3d/2d/1d: shape of each bin
+    - grid_3d/2d/1d: the actual 3d/2d/1d bins
+    - exp: nd-array of expected votes, same shape as grid_3d,
+    - centers: found centers
     """
+
     def __init__(self, data_list: np.ndarray, space_3d) -> None:
         """  
         :param data_list: from files
@@ -70,9 +71,11 @@ class Sky:
                '3d range: {}\n' \
                'dec ra range: {}\n' \
                'z range: {}\n' \
-               '3d bin space: {}'.format(
+               '3d bin space: {}\n' \
+               '3d bin shape: {}'.format(
                 self.range_3d, self.range_2d,
-                self.range_1d, self.space_3d)
+                self.range_1d, self.space_3d,
+                self.grid_3d.shape)
 
     def _coord_to_grid(self, point):
         """
@@ -194,18 +197,19 @@ class Sky:
     def find_center(self, radius: [float, int],
                     blob_size: int,
                     type_: str,
-                    error=-1):
+                    rms_factor=1):
         """
         The wrapper function of center-finding procedure
         Run it and get the centers
         :param radius: expected BAO radius
         :param blob_size: blob size
         :param type_: 'difference' or 'ratio'
-        :param error:
+        :param rms_factor: customize factor in blob finding; used in mocks but not real data
         :return:
         """
         self.vote(radius)
-        self.find_blob(radius, blob_size, type_, error)
+        self.vote_2d_1d()
+        self.find_blob(radius, blob_size, type_, rms_factor=rms_factor)
         self.confirm_center()
 
     def vote(self, radius: float) -> None:
@@ -223,43 +227,24 @@ class Sky:
                   radius: [int, float],
                   blob_size: int,
                   type_: str,
-                  rms_factor=1.5,
-                  error=-1) -> None:
+                  rms_factor=1) -> None:
         """
         Find blobs on voted grid
         :param radius: expected BAO radius
-        :param blob_size:
+        :param blob_size: max size of blobs
         :param type_: ratio or difference (for threshold-ing uses)
-        :param rms_factor: customize factor in blob finding; for testing use
-        :param error: error allowed in fit_bao
+        :param rms_factor: customize factor in blob finding; used in mocks but not real data
         :return: None
         """
         self.grid_3d[0, :, :] = 0
         self.grid_3d[:, 0, :] = 0
         self.grid_3d[:, :, 0] = 0
-        if error == -1:
-            error = self.space_3d
         threshold = self.get_threshold(radius)
         blobs = dog(self.grid_3d, threshold, type_, blob_size, rms_factor)
         sys.stderr.write('***************** blob finished *****************\n')
         self.centers = np.asarray(blobs)
-        sys.stderr.write('number of centers found (before confirming): {}\n'
+        sys.stderr.write('number of centers found (before confirming):\t{}\n'
                          .format(len(blobs)))
-
-        # filter out found centers > 18 Mpcs away from any galaxy
-        gaus = util.conv(self.get_galaxy_grid(), util.distance_kernel(18, self.space_3d))
-        gaus[gaus < .5] = 0
-        confirmed = []
-        print(len(blobs))
-        for c_grid in blobs:
-            c_grid = [int(c) for c in c_grid]
-            if gaus[c_grid[0], c_grid[1], c_grid[2]] > 0:
-                confirmed.append(self._grid_to_coord(c_grid))
-
-        self.centers = np.asarray(confirmed)
-        self.centers = self.fit_bao(radius, error * 2)
-        self.centers = np.asarray(self.centers)
-        sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
 
     def confirm_center(self) -> None:
         """
@@ -270,13 +255,14 @@ class Sky:
             sys.stderr.write('No centers found')
         else:
             gaus = util.conv(self.get_galaxy_grid(), util.distance_kernel(18, self.space_3d))
+            gaus[gaus < .5] = 0
             confirmed = []
             for c_grid in self.centers:
-                c_grid = [int(c) for c in self._coord_to_grid(c_grid)]
+                c_grid = [int(c) for c in c_grid]
                 if gaus[c_grid[0], c_grid[1], c_grid[2]] > 0:
                     confirmed.append(self._grid_to_coord(c_grid))
             self.centers = np.asarray(confirmed)
-            sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
+            sys.stderr.write('number of centers found (after confirming):\t{}\n'.format(len(confirmed)))
 
     def eval(self, get_distribution=True):
         """
@@ -306,8 +292,8 @@ class Sky:
 
         # calculate distribution
         if get_distribution:
-            for center in self.get_generated_centers():
-                dist_2 = np.sum((center[:3] - np.vstack(self.centers)) ** 2, axis=1)
+            for center in self.centers:
+                dist_2 = np.sum((center[:3] - self.get_generated_centers()) ** 2, axis=1)
                 nearest_dist = np.min(dist_2) ** .5
                 distribution.append(nearest_dist)
 
@@ -352,7 +338,7 @@ class Sky:
         :param grid: set it to true to return grid indices rather than coordinates
         :return:
         """
-        ret = np.vstack([point for point in self.data_cartesian.T if point[3] == 2])
+        ret = np.vstack([point[:3] for point in self.data_cartesian.T if point[3] == 2])
         if grid:
             return np.asarray(self._coord_to_grid(ret.T)).T
         else:
@@ -456,12 +442,15 @@ class Sky:
         multiplicity = found_eff / true_centers
 
         plt.figure(figsize=[6, 6])
-        plt.hist(distr, bins=50, density=True)
-        xmin, xmax = plt.xlim()
-        x = np.linspace(xmin, xmax, 50)
-        y = norm.pdf(x, mean, std)
-        plt.plot(x, y)
+        # plt.hist(distr, bins=30, density=True)
+        count0, bin_edges0 = np.histogram(distr, 30, normed=False)
+        bin_centers0 = (bin_edges0[1:] + bin_edges0[:-1]) / 2
 
+        plt.hist(distr, bins=50, density=True)
+        mean, std = norm.fit(distr)
+        xmin, xmax = plt.xlim()
+        plt.bar(bin_centers0, count0, bin_centers0[1] - bin_centers0[0],
+                color='darkorchid', alpha=0.9, ec='k', label='')
         plt.xlabel(
             'distance \n'
             'centers found = {:d} '
@@ -469,7 +458,7 @@ class Sky:
             'efficiency = {:f}, fake rate = {:f}, multiplicity = {:f}'.format(
                 len(distr), mean, std, efficiency, fake_rate, multiplicity))
         plt.ylabel('frequency')
-        plt.title('Distance to real centers (SignalN3_mid)')
+        plt.title('Distance to real centers')
 
         plt.tight_layout()
         if savelabel:
@@ -503,15 +492,10 @@ class Sky:
         thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
         thres_grid = thres_grid.reshape(self.grid_3d.shape)
         thres_grid /= np.sum(thres_grid)
-        print(np.sum(thres_grid))
-        plt.imshow(weight[:, :, 50])
-        plt.show()
 
         # scale threshold
         galaxy_num = self.data_cartesian.shape[1]
-        print(galaxy_num)
         thres_grid *= galaxy_num
-        print(np.sum(util.kernel(radius, self.space_3d)))
         thres_grid *= np.sum(util.kernel(radius, self.space_3d))
         thres_grid *= weight
         thres_grid = np.nan_to_num(thres_grid)
@@ -521,7 +505,6 @@ class Sky:
         exp = thres_grid.flatten()
 
         slope, intercept, r_value, p_value, std_err = linregress(grid, exp)
-        print(slope)
         self.exp = thres_grid / slope
         return thres_grid
 
