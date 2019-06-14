@@ -186,6 +186,7 @@ class Sky:
         w = util.kernel(radius, self.space_3d)
         self.grid = util.conv(self.grid, w)
 
+
     def blobs_thres(self,
                     radius: [int, float],
                     blob_size: int,
@@ -216,16 +217,18 @@ class Sky:
         # filter out found centers > 18 Mpcs away from any galaxy
         gaus = util.conv(self.get_galaxy_grid(), util.distance_kernel(18, self.space_3d))
         confirmed = []
-        print(len(blobs))
+        print('Length of blobs:', len(blobs))
         for c_grid in blobs:
             c_grid = [int(c) for c in c_grid]
             if gaus[c_grid[0], c_grid[1], c_grid[2]] > 0:
                 confirmed.append(self._grid_to_coord(c_grid))
         self.centers = np.asarray(confirmed)
-        print(self.centers.shape)
+        print('Centers shape:', self.centers.shape)
         self.centers = self.fit_bao(radius, error * 2)
         self.centers = np.asarray(self.centers)
         sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
+
+
 
     def confirm_center(self) -> None:
         """
@@ -465,15 +468,15 @@ class Sky:
         thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
         thres_grid = thres_grid.reshape(self.grid.shape)
         thres_grid /= np.sum(thres_grid)
-        print(np.sum(thres_grid))
-        plt.imshow(weight[:, :, 50])
-        plt.show()
+        print('Sum of theshold grid:', np.sum(thres_grid))
+        # plt.imshow(weight[:, :, 50])
+        # plt.show()
 
         # scale threshold
         galaxy_num = self.xyz_list.shape[1]
-        print(galaxy_num)
+        print('Galaxy number:', galaxy_num)
         thres_grid *= galaxy_num
-        print(np.sum(util.kernel(radius, self.space_3d)))
+        print('Sum over kernel:', np.sum(util.kernel(radius, self.space_3d)))
         thres_grid *= np.sum(util.kernel(radius, self.space_3d))
         thres_grid *= weight
         thres_grid = np.nan_to_num(thres_grid)
@@ -483,7 +486,7 @@ class Sky:
         exp = thres_grid.flatten()
 
         slope, intercept, r_value, p_value, std_err = linregress(grid, exp)
-        print(slope)
+        print('Slope:', slope)
         self.exp = thres_grid / slope
         return thres_grid
 

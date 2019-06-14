@@ -12,13 +12,9 @@ from . import sky
 sys.modules['sky'] = sky
 
 
+
 def load_data(filename: str) -> np.ndarray:
-    """
-    load the data from file; can take in both plain text and .fits
-    :param filename:
-    :param space:
-    :return:
-    """
+    
     if filename.split('.')[-1] == 'fits':
         hdul = fits.open(filename)
         ra = hdul[1].data['ra']
@@ -218,7 +214,7 @@ def sphere_fit(sp_x, sp_y, sp_z):
     #   Assemble the f matrix
     f = np.zeros((len(sp_x), 1))
     f[:, 0] = (sp_x * sp_x) + (sp_y * sp_y) + (sp_z * sp_z)
-    C, residules, rank, singval = np.linalg.lstsq(A, f)
+    C, residules, rank, singval = np.linalg.lstsq(A, f, rcond=None)
 
     #   solve for the radius
     t = (C[0] * C[0]) + (C[1] * C[1]) + (C[2] * C[2]) + C[3]
