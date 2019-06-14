@@ -1,32 +1,27 @@
 # center-finder
 
-## Installation
+## Quick Installation
 
 Clone the repository:
 ```
-git clone https://github.com/yujie-liu/center-finder.git
+git clone https://github.com/mishtak00/center-finder.git
 ```
 
 Create a virtual environment and install the dependencies:
 ```
 cd center-finder
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
-```
- 
-Run an example test:
-```
-python tests/test_blob.py
+bash install.sh
+cd run
 ```
 
-Or customize input mock catalog and number of generated centers in the mock:
+Select your input mock catalog and specify number of BAO centers in it:
 ```
-python tests/blob_example.py data/cf_mock_catalog_83C_120R.fits 83
+python scan.py cf_mock_catalog_83C_120R.fits 83 --full
 ```
 
 Remember to deactivate the virtual environment when finished:
 ```
 deactivate
 ```
+
+### Check out the full design doc at https://docs.google.com/document/d/1AqgrDoau8i6keNp4zia9K_l3TCBOQYPmFZIa309MlE0/edit?usp=sharing
