@@ -10,6 +10,8 @@ git clone https://github.com/mishtak00/center-finder.git
 Create a virtual environment and install the dependencies:
 ```
 cd center-finder
+python -m venv venv
+source venv/bin/activate
 bash install.sh
 cd run
 ```
