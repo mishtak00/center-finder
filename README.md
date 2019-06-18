@@ -4,7 +4,7 @@
 
 Clone the repository:
 ```
-git clone https://github.com/mishtak00/center-finder.git
+git clone https://github.com/mishtak00/center-finder
 ```
 
 Create a virtual environment and install the dependencies:
