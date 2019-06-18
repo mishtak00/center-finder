@@ -54,7 +54,7 @@ def blob(filename):
 		sky = util.unpickle_sky(file)
 
 		# blob
-		s.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
+		sky.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
 		filename_new = '../output/{}'.format(filename) + file.split('/')[-1] + '_blob'
 		util.pickle_sky(sky, filename_new)
 
@@ -66,7 +66,7 @@ def test_blob(filename, radius = 90):
 		sky = util.unpickle_sky(file)
 
 		# blob
-		s.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
+		sky.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
 
 		# TODO: FIX THIS DATA FORMAT PROBLEM FOR Y'S AND Z'S
 		centers = np.asarray(sky.centers, dtype=np.float64)
