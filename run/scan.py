@@ -17,63 +17,105 @@ def read_fits(filename):
 		ra = hdul[1].data['RA']
 		dec = hdul[1].data['DEC']
 		z = hdul[1].data['Z']
-		typ_ = hdul[1].data['WEIGHT']  # placeholder
-		return np.vstack([ra, dec, z, typ_])
+		n_voters = hdul[1].data['N_VOTERS']  # placeholder
+		return np.vstack([ra, dec, z, n_voters])
+
+
+def write_fits(filename, centers, n_voters):
+	columns = []
+	columns.append(fits.Column(name='RA', format='E', array=centers[0]))
+	columns.append(fits.Column(name='DEC', format='E', array=centers[1]))
+	columns.append(fits.Column(name='Z', format='E', array=centers[2]))
+	columns.append(fits.Column(name='N_VOTERS', format='E', array=n_voters))
+	new_hdus = fits.BinTableHDU.from_columns(columns)
+	try:
+		new_hdus.writeto('{}.fits'.format(filename))
+	except OSError:
+		pass
+	print('The following is the output in .fits:\n', read_fits('{}.fits'.format(filename)))
 
 
 def vote(filename):
 	for radius in range(90, 130, 3):
-		sky_ = sky.Sky(util.load_data(filename), 5)
-		sky_.vote(radius=radius)
-		sky_.vote_2d_1d()
+		sky = sky.Sky(util.load_data(filename), 5)
+		sky.vote(radius=radius)
+		sky.vote_2d_1d()
 		path = filename.split('.')[-2].split('/')[-1]
-		path = '../output/' + path + '_' + str(radius)
+		path = '../output/{}/'.format(path) + path + '_' + str(radius)
 		print(path, filename)
-		util.pickle_sky(sky_, path)
+		util.pickle_sky(sky, path)
 
 
 def blob(filename):
 
 	for radius in range(90, 130, 3):
-		
 		# get the voted result
 		file = filename + '_' + str(radius)
-		sky_ = util.unpickle_sky(file)
+		sky = util.unpickle_sky(file)
 
 		# blob
-		sky_.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
+		sky.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
 		filename_new = '../output/{}'.format(filename) + file.split('/')[-1] + '_blob'
-		util.pickle_sky(sky_, filename_new)
+		util.pickle_sky(sky, filename_new)
 
 
-def test_blob(sky_, radius, rms_factor=1, filename=None):
+def test_blob(filename, radius = 90):
 
-	sky_.blobs_thres(radius=radius, blob_size=5, type_='difference', rms_factor=rms_factor)
-	util.pickle_sky(sky_, filename)
-	center_num = len(sky_.centers)
-	ev = sky_.eval()
-	eff = ev[1]
-	center_f_true = ev[2]
-	with open(filename+ '_rms.txt', 'w') as f:
-		f.write(str(center_num))
-		f.write('\n')
-		f.write(str(rms_factor))
-		f.write('\n')
-		f.write(str(eff))
-		f.write('\n')
-		f.write(str(center_f_true))
-		f.write('\n---------------------------------------\n')
-	return [radius, rms_factor, center_num, eff, center_f_true]
+		# get the voted result
+		file = filename + '_' + str(radius)
+		sky = util.unpickle_sky(file)
+
+		# blob
+		sky.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
+
+		# TODO: FIX THIS DATA FORMAT PROBLEM FOR Y'S AND Z'S
+		centers = np.asarray(sky.centers, dtype=np.float64)
+
+		# This gets the voters per each center
+		# TODO: OPTIMIZE BECAUSE IT TAKES ENORMOUS AMOUNT OF TIME
+		print('Centers\' shape for getting n_voters:', centers.shape)
+		n_voters = np.asarray([len(sky.get_voters(centers[i], radius)) for i in range(len(centers))])
+
+		# This puts data in celestial coordinates
+		centers = util.cartesian_to_sky(centers.T)
+		print('Centers\' shape for fits output:', centers.shape)
+
+		filename_new = file + '_blob'
+
+		# Output to .pkl
+		util.pickle_sky(sky, filename_new)
+
+		# Output to .fits
+		write_fits(filename_new, centers, n_voters)
+
+
+# def test_blob(sky, radius, rms_factor=1, filename=None):
+# 	sky.blobs_thres(radius=radius, blob_size=5, type_='difference', rms_factor=rms_factor)
+# 	util.pickle_sky(sky, filename)
+# 	center_num = len(sky.centers)
+# 	ev = sky.eval()
+# 	eff = ev[1]
+# 	center_f_true = ev[2]
+# 	with open(filename+ '_rms.txt', 'w') as f:
+# 		f.write(str(center_num))
+# 		f.write('\n')
+# 		f.write(str(rms_factor))
+# 		f.write('\n')
+# 		f.write(str(eff))
+# 		f.write('\n')
+# 		f.write(str(center_f_true))
+# 		f.write('\n---------------------------------------\n')
+# 	return [radius, rms_factor, center_num, eff, center_f_true]
 
 
 def scan_rms(filename):
 	lst = []
-	sky_ = util.unpickle_sky(filename)
-	if not isinstance(sky_, sky.Sky):
-		raise ValueError("Object is of type " + type(sky_))
+	sky = util.unpickle_sky(filename)
+	if not isinstance(sky, sky.Sky):
+		raise ValueError("Object is of type " + type(sky))
 	for rms in np.arange(0.9, 2, 0.1):
 		print(rms)
-		tmp = test_blob(sky_, 108, rms_factor=rms, filename=filename)
+		tmp = test_blob(sky, 108, rms_factor=rms, filename=filename)
 		lst.append(tmp)
 	lst = np.asarray(lst)
 	with open(filename + '_rms_pickle', 'wb') as f:
@@ -101,14 +143,14 @@ def eval(filename, centers):
 
 		# get the blob result
 		file = '../output/{}'.format(filename) + filename + '_' + str(radius) + '_blob'
-		sky_ = util.unpickle_sky(file)
+		sky = util.unpickle_sky(file)
 
-		all_centers_num = len(sky_.centers)
+		all_centers_num = len(sky.centers)
 		total_centers.append(all_centers_num)
 		total_err.append(np.sqrt(all_centers_num))
 
 		# evaluation true centers
-		ev = sky_.eval()
+		ev = sky.eval()
 		center_f_true = ev[2]
 
 		true_centers.append(center_f_true)
@@ -196,17 +238,24 @@ if __name__ == '__main__':
 	parser.add_argument('--eval', action='store_true', help='If this argument is present, the "eval" procedure will occur.')
 	parser.add_argument('--plot', action='store_true', help='If this argument is present, the "plot" procedure will occur.')
 	parser.add_argument('--full', action='store_true', help='If this argument is present, all of the procedures will occur.')
+	parser.add_argument('--test_blob', action='store_true', help='If this argument is present, the blob testing procedures will occur.')
 	args = parser.parse_args()
 
 	# making the specific output directory inside the general output directory
 	filename = args.file.split('.')[-2]
-	os.mkdir('../output/%s' % filename)
+	try:
+		os.mkdir('../output/%s' % filename)
+	except FileExistsError:
+		pass
 
 	if (args.vote or args.full):
 		vote('../data/%s' % args.file)
 
 	if (args.blob or args.full):
 		blob('../output/%s/%s' % (filename, filename))
+
+	if (args.test_blob):
+		test_blob('../output/%s/%s' % (filename, filename))
 
 	if (args.eval or args.full):
 		eval(filename, args.nr_true_centers)
