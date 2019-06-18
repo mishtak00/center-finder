@@ -73,15 +73,16 @@ def sky_to_cartesian(points: np.ndarray, degrees=True):
     return np.vstack([x, y, z])
 
 
+# TODO: Deal with the array([float]) problem. Why are the y's and z's in that form?
 def cartesian_to_sky(points: np.ndarray):
     """
-
     :param points:
     :return: ndarray in shape (3, *)
     """
     if len(points) < 3:
         raise ValueError('Input dimension should be > 3; get {:d}'.format(len(points)))
     x, y, z = points[:3]
+    # print('\nx dtype={}\n'.format(x.dtype), '\ny dtype={}\n'.format(y.dtype), '\nz dtype={}\n'.format(z.dtype))
     s = np.sqrt(x ** 2 + y ** 2)
     lon = np.arctan2(y, x)
     lat = np.arctan2(z, s)
@@ -94,7 +95,10 @@ def cartesian_to_sky(points: np.ndarray):
     norm = 3000
     r = z / np.sin(np.radians(dec))
     func = r / norm
-    z = 2.43309 - 0.108811 * np.sqrt(500 - 411 * func)
+
+    # TODO: FIX THIS RUNTIME WARNING, THERE'S A NEGATIVE NUMBER IN THE SQRT
+    sqr = abs(500 - 411 * np.float64(func))
+    z = 2.43309 - 0.108811 * np.sqrt(sqr)
 
     return np.vstack([ra, dec, z])
 
@@ -233,6 +237,8 @@ def unpickle_sky(filename):
     with open(filename, 'rb') as f:
         sky_ = pickle.load(f)
     return sky_
+
+
 
 
 def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None, c_generated=None):

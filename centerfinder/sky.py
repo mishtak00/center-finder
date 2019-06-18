@@ -157,6 +157,7 @@ class Sky:
         galaxy_grid[grids[0], grids[1], grids[2]] = 1
         return galaxy_grid
 
+
     def find_center(self, radius: [float, int],
                     blob_size: int,
                     type_: str,
@@ -173,6 +174,7 @@ class Sky:
         self.vote(radius)
         self.blobs_thres(radius, blob_size, type_, error)
         self.confirm_center()
+
 
     def vote(self, radius: float) -> None:
         # TODO: fix 2d and 1d binning
@@ -212,8 +214,8 @@ class Sky:
         blobs = dog(self.grid, threshold, type_, blob_size, rms_factor)
         sys.stderr.write('***************** blob finished *****************\n')
         self.centers = np.asarray(blobs)
-        sys.stderr.write('number of centers found (before confirming): {}\n'.format(len(blobs)))
-        #
+        sys.stderr.write('Number of centers found (before confirming): {}\n'.format(len(blobs)))
+        
         # filter out found centers > 18 Mpcs away from any galaxy
         gaus = util.conv(self.get_galaxy_grid(), util.distance_kernel(18, self.space_3d))
         confirmed = []
@@ -224,9 +226,12 @@ class Sky:
                 confirmed.append(self._grid_to_coord(c_grid))
         self.centers = np.asarray(confirmed)
         print('Centers shape:', self.centers.shape)
+
+        # TODO: THIS IS THE MOST TIME-CONSUMING METHOD, CHECK FOR OPTIMIZATION
         self.centers = self.fit_bao(radius, error * 2)
+
         self.centers = np.asarray(self.centers)
-        sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
+        sys.stderr.write('Number of centers found: {}\n'.format(len(confirmed)))
 
 
 
@@ -246,6 +251,7 @@ class Sky:
                     confirmed.append(self._grid_to_coord(c_grid))
             self.centers = np.asarray(confirmed)
             sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
+
 
     def eval(self):
         """
@@ -288,6 +294,7 @@ class Sky:
                 centers_f_true += 1
         return distribution, centers_true, centers_f_true
 
+
     def draw_sphere(self, point, radius, error=-1):
         """
         For plotting purpose
@@ -311,6 +318,9 @@ class Sky:
         self.grid[sphere[0], sphere[1], sphere[2]] += 1
         return sphere
 
+    '''
+    This does not do what it says it does. It returns the true centers from the initial data file.
+    '''
     def get_centers(self, grid=False):
         '''
         Get the generated centers as an ndarray
@@ -490,6 +500,7 @@ class Sky:
         self.exp = thres_grid / slope
         return thres_grid
 
+
     def get_voters(self, center, radius, abs_idx=False):
         """
         Get all the voters for a given center, returned in grid indices
@@ -519,10 +530,17 @@ class Sky:
                 # get relative index to the center
                 rel_idx = [i - c for i in idx]
                 rim_list.append(rel_idx)
-        subgrid[c, c, c] = -1
+
+        # TODO: FIX THE INDEXOUTOFBOUND ERROR HERE
+        try:
+            subgrid[c, c, c] = -1
+        except IndexError:
+            pass
+
         if abs_idx:
             rim_list = [(r[0] + x, r[1] + y, r[2] + z) for r in rim_list]
         return np.asarray(rim_list)
+
 
     def vote_2d_1d(self) -> None:
         """
