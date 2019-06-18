@@ -18,7 +18,7 @@ cd run
 
 Select your input mock catalog and specify number of BAO centers in it:
 ```
-python scan.py cf_mock_catalog_83C_120R.fits 83 --full
+python scan.py cf_mock_catalog_83C_120R.fits 83 --test_blob
 ```
 
 Remember to deactivate the virtual environment when finished:
