@@ -7,7 +7,7 @@ import os
 
 from centerfinder import util
 from centerfinder import blob
-from centerfinder import sky
+from centerfinder import sky as s
 
 
 
@@ -37,7 +37,7 @@ def write_fits(filename, centers, n_voters):
 
 def vote(filename):
 	for radius in range(90, 130, 3):
-		sky = sky.Sky(util.load_data(filename), 5)
+		sky = s.Sky(util.load_data(filename), 5)
 		sky.vote(radius=radius)
 		sky.vote_2d_1d()
 		path = filename.split('.')[-2].split('/')[-1]
@@ -54,7 +54,7 @@ def blob(filename):
 		sky = util.unpickle_sky(file)
 
 		# blob
-		sky.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
+		s.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
 		filename_new = '../output/{}'.format(filename) + file.split('/')[-1] + '_blob'
 		util.pickle_sky(sky, filename_new)
 
@@ -66,7 +66,7 @@ def test_blob(filename, radius = 90):
 		sky = util.unpickle_sky(file)
 
 		# blob
-		sky.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
+		s.blobs_thres(radius = radius, blob_size = 5, type_ = 'difference', rms_factor = 1)
 
 		# TODO: FIX THIS DATA FORMAT PROBLEM FOR Y'S AND Z'S
 		centers = np.asarray(sky.centers, dtype=np.float64)
@@ -111,7 +111,7 @@ def test_blob(filename, radius = 90):
 def scan_rms(filename):
 	lst = []
 	sky = util.unpickle_sky(filename)
-	if not isinstance(sky, sky.Sky):
+	if not isinstance(sky, s.Sky):
 		raise ValueError("Object is of type " + type(sky))
 	for rms in np.arange(0.9, 2, 0.1):
 		print(rms)
@@ -150,7 +150,7 @@ def eval(filename, centers):
 		total_err.append(np.sqrt(all_centers_num))
 
 		# evaluation true centers
-		ev = sky.eval()
+		ev = s.eval()
 		center_f_true = ev[2]
 
 		true_centers.append(center_f_true)
