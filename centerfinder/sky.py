@@ -101,6 +101,7 @@ class Sky:
 
         if np.isnan(point).any():
             return [-1, -1, -1]
+
         index = [min(self.bins_2d[i] - 1, int((point[i] - self.range_2d[i][0])
                                               / self.space_2d)) for i in range(2)]
         z = int((point[2] - self.range_1d[0]) / self.space_1d)
@@ -194,7 +195,7 @@ class Sky:
                     blob_size: int,
                     type_: str,
                     rms_factor=1.5,
-                    error=-1) -> None:
+                    error=-1):
         """
         Find blobs on voted grid
         :param radius: expected BAO radius
@@ -209,29 +210,49 @@ class Sky:
         self.grid[:, :, 0] = 0
         if error == -1:
             error = self.space_3d
+
         threshold = self.get_threshold(radius)
-        # threshold = util.local_thres(self.grid, 40)
+        print('Threshold grid shape: {}'.format(threshold.shape))
+        # print('Threshold:\n', threshold, '\n')
+
         blobs = dog(self.grid, threshold, type_, blob_size, rms_factor)
-        sys.stderr.write('***************** blob finished *****************\n')
+        print('***************** blob finished *****************\n')
         self.centers = np.asarray(blobs)
-        sys.stderr.write('Number of centers found (before confirming): {}\n'.format(len(blobs)))
+        print('Number of centers found (before confirming): {}\n'.format(len(blobs)))
         
         # filter out found centers > 18 Mpcs away from any galaxy
         gaus = util.conv(self.get_galaxy_grid(), util.distance_kernel(18, self.space_3d))
+        print('Shape of the \'gaus\' structure: {}'.format(gaus.shape))
+        # print('gaus:\n', gaus, '\n')
+
         confirmed = []
-        print('Length of blobs:', len(blobs))
+        n_observed = []
+        n_expected = []
+        print('Number of blobs:', len(blobs))
+        # this runs through all centers found
         for c_grid in blobs:
+            # this c_grid is just a list representing a center in the grid as its grid indices
+            # TODO: CHANGE THIS. 
             c_grid = [int(c) for c in c_grid]
+            # TODO: if gaus at this center is > 0... what does this mean?
             if gaus[c_grid[0], c_grid[1], c_grid[2]] > 0:
+                # add the center to the confirmed list
                 confirmed.append(self._grid_to_coord(c_grid))
+                # also add the value of this point from the n_observed_grid to the n_observed list
+                n_observed.append(self.grid[c_grid[0], c_grid[1], c_grid[2]])
+                # finally add the value of this point from the n_expected_grid to the n_expected list
+                n_expected.append(self.exp[c_grid[0], c_grid[1], c_grid[2]])
         self.centers = np.asarray(confirmed)
+        self.grid = np.asarray(n_observed)
+        self.exp = np.asarray(n_expected)
+
         print('Centers shape:', self.centers.shape)
+        print('Number of centers found (after confirming, before fit_bao): {}'.format(len(self.centers)))
 
         # TODO: THIS IS THE MOST TIME-CONSUMING METHOD, CHECK FOR OPTIMIZATION
         self.centers = self.fit_bao(radius, error * 2)
-
+        print('Number of centers found (after fit_bao): {}'.format(len(self.centers)))
         self.centers = np.asarray(self.centers)
-        sys.stderr.write('Number of centers found: {}\n'.format(len(confirmed)))
 
 
 
@@ -251,6 +272,7 @@ class Sky:
                     confirmed.append(self._grid_to_coord(c_grid))
             self.centers = np.asarray(confirmed)
             sys.stderr.write('number of centers found: {}\n'.format(len(confirmed)))
+
 
 
     def eval(self):
@@ -333,6 +355,7 @@ class Sky:
         else:
             return ret
 
+
     def fit_bao(self, radius: [int, float], error: float) -> np.ndarray:
         ret = []
         xyz = np.array(self.xyz_list)[:3].T
@@ -350,6 +373,7 @@ class Sky:
             return np.vstack(ret)
         except:
             return np.zeros((3, 0))
+
 
     def plot_sky(self, show_rim=False, radius=0, savelabel=None) -> None:
         """
@@ -392,6 +416,7 @@ class Sky:
         else:
             plt.show()
 
+
     def plot_original(self) -> None:
         """
         Plots the given catalog: centers in red, rims in blue
@@ -408,6 +433,7 @@ class Sky:
                    zs=self.xyz_list[2],
                    color='blue', alpha=0.1)
         plt.show()
+
 
     def plot_eval(self, centers_generated: int, savelabel: str = None) -> None:
         """
@@ -453,6 +479,8 @@ class Sky:
         else:
             plt.show()
 
+
+    # This is the method that gets the 'significance' values
     def get_threshold(self, radius):
         # TODO: currently just a temporary fix of the obs-exp slope
         """
@@ -473,14 +501,16 @@ class Sky:
         weight = dVD / dVang
         weight = weight.reshape(self.grid.shape)
 
+        # this is P(ra, dec) * P(z)
         # combine 2d and 1d grids into 3d grid
         new_idx = self._coord_to_grid_2d([ra, dec, z])
         thres_grid = self.grid_2d[new_idx[0], new_idx[1]] * self.grid_1d[new_idx[2]]
+        # print('thres_grid shape (before reshape): {}'.format(thres_grid.shape))
         thres_grid = thres_grid.reshape(self.grid.shape)
+        # print('thres_grid shape (after reshape): {}'.format(thres_grid.shape))
         thres_grid /= np.sum(thres_grid)
-        print('Sum of theshold grid:', np.sum(thres_grid))
-        # plt.imshow(weight[:, :, 50])
-        # plt.show()
+        print('Sum over threshold grid (after normalization, should be ~1.0):', np.sum(thres_grid))
+        # print('thres_grid (after normalization):', thres_grid, '\n')
 
         # scale threshold
         galaxy_num = self.xyz_list.shape[1]
@@ -492,12 +522,16 @@ class Sky:
         thres_grid = np.nan_to_num(thres_grid)
         thres_grid = gaussian_filter(thres_grid, sigma=1)
 
+
+        # print('n_observed_grid:\n', self.grid, '\n')
         grid = self.grid.flatten()
         exp = thres_grid.flatten()
 
         slope, intercept, r_value, p_value, std_err = linregress(grid, exp)
-        print('Slope:', slope)
+        print('Slope of the linreg of flattened n_observed_grid vs n_expected_grid:', slope, '\n')
         self.exp = thres_grid / slope
+        # print('n_expected_grid:\n', self.exp, '\n')
+
         return thres_grid
 
 

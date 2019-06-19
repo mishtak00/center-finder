@@ -97,7 +97,7 @@ def cartesian_to_sky(points: np.ndarray):
     func = r / norm
 
     # TODO: FIX THIS RUNTIME WARNING, THERE'S A NEGATIVE NUMBER IN THE SQRT
-    sqr = abs(500 - 411 * np.float64(func))
+    sqr = abs(500 - 411 * func)
     z = 2.43309 - 0.108811 * np.sqrt(sqr)
 
     return np.vstack([ra, dec, z])
