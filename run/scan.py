@@ -17,22 +17,24 @@ def read_fits(filename):
 		ra = hdul[1].data['RA']
 		dec = hdul[1].data['DEC']
 		z = hdul[1].data['Z']
-		n_voters = hdul[1].data['N_VOTERS']  # placeholder
-		return np.vstack([ra, dec, z, n_voters])
+		n_observed = hdul[1].data['N_OBSERVED']
+		n_expected = hdul[1].data['N_EXPECTED']
+		return np.vstack([ra, dec, z, n_observed, n_expected])
 
 
-def write_fits(filename, centers, n_voters):
+def write_fits(filename, centers, n_observed, n_expected):
 	columns = []
 	columns.append(fits.Column(name='RA', format='E', array=centers[0]))
 	columns.append(fits.Column(name='DEC', format='E', array=centers[1]))
 	columns.append(fits.Column(name='Z', format='E', array=centers[2]))
-	columns.append(fits.Column(name='N_VOTERS', format='E', array=n_voters))
+	columns.append(fits.Column(name='N_OBSERVED', format='E', array=n_observed))
+	columns.append(fits.Column(name='N_EXPECTED', format='E', array=n_expected))
 	new_hdus = fits.BinTableHDU.from_columns(columns)
 	try:
 		new_hdus.writeto('{}.fits'.format(filename))
 	except OSError:
 		pass
-	print('The following is the output in .fits:\n', read_fits('{}.fits'.format(filename)))
+	print('\nThe following is the output in .fits:\n', read_fits('{}.fits'.format(filename)))
 
 
 def vote(filename):
@@ -59,7 +61,7 @@ def blob(filename):
 		util.pickle_sky(sky, filename_new)
 
 
-def test_blob(filename, radius = 90):
+def test_blob(filename, radius = 108):
 
 		# get the voted result
 		file = filename + '_' + str(radius)
@@ -71,10 +73,11 @@ def test_blob(filename, radius = 90):
 		# TODO: FIX THIS DATA FORMAT PROBLEM FOR Y'S AND Z'S
 		centers = np.asarray(sky.centers, dtype=np.float64)
 
-		# This gets the voters per each center
-		# TODO: OPTIMIZE BECAUSE IT TAKES ENORMOUS AMOUNT OF TIME
-		print('Centers\' shape for getting n_voters:', centers.shape)
-		n_voters = np.asarray([len(sky.get_voters(centers[i], radius)) for i in range(len(centers))])
+		# This gets the voters per each center found
+		n_observed = np.asarray(sky.grid, dtype=int)
+
+		# This gets the expected voters per each center found
+		n_expected = np.asarray(sky.exp, dtype=np.float64)
 
 		# This puts data in celestial coordinates
 		centers = util.cartesian_to_sky(centers.T)
@@ -86,7 +89,7 @@ def test_blob(filename, radius = 90):
 		util.pickle_sky(sky, filename_new)
 
 		# Output to .fits
-		write_fits(filename_new, centers, n_voters)
+		write_fits(filename_new, centers, n_observed, n_expected)
 
 
 # def test_blob(sky, radius, rms_factor=1, filename=None):
@@ -108,18 +111,18 @@ def test_blob(filename, radius = 90):
 # 	return [radius, rms_factor, center_num, eff, center_f_true]
 
 
-def scan_rms(filename):
-	lst = []
-	sky = util.unpickle_sky(filename)
-	if not isinstance(sky, s.Sky):
-		raise ValueError("Object is of type " + type(sky))
-	for rms in np.arange(0.9, 2, 0.1):
-		print(rms)
-		tmp = test_blob(sky, 108, rms_factor=rms, filename=filename)
-		lst.append(tmp)
-	lst = np.asarray(lst)
-	with open(filename + '_rms_pickle', 'wb') as f:
-		pickle.dump(lst, f)
+# def scan_rms(filename):
+# 	lst = []
+# 	sky = util.unpickle_sky(filename)
+# 	if not isinstance(sky, s.Sky):
+# 		raise ValueError("Object is of type " + type(sky))
+# 	for rms in np.arange(0.9, 2, 0.1):
+# 		print(rms)
+# 		tmp = test_blob(sky, 108, rms_factor=rms, filename=filename)
+# 		lst.append(tmp)
+# 	lst = np.asarray(lst)
+# 	with open(filename + '_rms_pickle', 'wb') as f:
+# 		pickle.dump(lst, f)
 
 
 def eval(filename, centers):
@@ -261,8 +264,9 @@ if __name__ == '__main__':
 		eval(filename, args.nr_true_centers)
 
 	if (args.plot or args.full):
+		# this gets 1 thru 5 of the filename split because it assumes 
+		# the filename is something like cf_set_i_mock_j_etc.etc
 		dataset = ' '.join(filename.split('_')[1:5])
 		plot(dataset, filename)
-
 
 
