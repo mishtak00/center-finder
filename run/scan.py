@@ -6,7 +6,6 @@ from argparse import ArgumentParser
 import os
 
 from centerfinder import util
-from centerfinder import blob
 from centerfinder import sky as s
 
 
@@ -43,8 +42,18 @@ def vote(filename):
         sky.vote_2d_1d()
         path = filename.split('.')[-2].split('/')[-1]
         path = '../output/{}/'.format(path) + path + '_' + str(radius)
-        print(path, filename)
         util.pickle_sky(sky, path)
+
+        # output to .fits
+        galaxies = np.asarray(sky.data_list, dtype=np.float64)
+        n_observed = np.asarray(sky.grid.flatten(), dtype=int)
+        columns = []
+        columns.append(fits.Column(name='RA', format='E', array=galaxies[0]))
+        columns.append(fits.Column(name='DEC', format='E', array=galaxies[1]))
+        columns.append(fits.Column(name='Z', format='E', array=galaxies[2]))
+        columns.append(fits.Column(name='N_OBSERVED', format='E', array=n_observed))
+        new_hdus = fits.BinTableHDU.from_columns(columns)
+        new_hdus.writeto('{}.fits'.format(path))
 
 
 def blob(filename):
@@ -112,36 +121,36 @@ def test_blob(filename, radius=108):
 
 
 # def test_blob(sky, radius, rms_factor=1, filename=None):
-# 	sky.blobs_thres(radius=radius, blob_size=5, type_='difference', rms_factor=rms_factor)
-# 	util.pickle_sky(sky, filename)
-# 	center_num = len(sky.centers)
-# 	ev = sky.eval()
-# 	eff = ev[1]
-# 	center_f_true = ev[2]
-# 	with open(filename+ '_rms.txt', 'w') as f:
-# 		f.write(str(center_num))
-# 		f.write('\n')
-# 		f.write(str(rms_factor))
-# 		f.write('\n')
-# 		f.write(str(eff))
-# 		f.write('\n')
-# 		f.write(str(center_f_true))
-# 		f.write('\n---------------------------------------\n')
-# 	return [radius, rms_factor, center_num, eff, center_f_true]
+#   sky.blobs_thres(radius=radius, blob_size=5, type_='difference', rms_factor=rms_factor)
+#   util.pickle_sky(sky, filename)
+#   center_num = len(sky.centers)
+#   ev = sky.eval()
+#   eff = ev[1]
+#   center_f_true = ev[2]
+#   with open(filename+ '_rms.txt', 'w') as f:
+#       f.write(str(center_num))
+#       f.write('\n')
+#       f.write(str(rms_factor))
+#       f.write('\n')
+#       f.write(str(eff))
+#       f.write('\n')
+#       f.write(str(center_f_true))
+#       f.write('\n---------------------------------------\n')
+#   return [radius, rms_factor, center_num, eff, center_f_true]
 
 
 # def scan_rms(filename):
-# 	lst = []
-# 	sky = util.unpickle_sky(filename)
-# 	if not isinstance(sky, s.Sky):
-# 		raise ValueError("Object is of type " + type(sky))
-# 	for rms in np.arange(0.9, 2, 0.1):
-# 		print(rms)
-# 		tmp = test_blob(sky, 108, rms_factor=rms, filename=filename)
-# 		lst.append(tmp)
-# 	lst = np.asarray(lst)
-# 	with open(filename + '_rms_pickle', 'wb') as f:
-# 		pickle.dump(lst, f)
+#   lst = []
+#   sky = util.unpickle_sky(filename)
+#   if not isinstance(sky, s.Sky):
+#       raise ValueError("Object is of type " + type(sky))
+#   for rms in np.arange(0.9, 2, 0.1):
+#       print(rms)
+#       tmp = test_blob(sky, 108, rms_factor=rms, filename=filename)
+#       lst.append(tmp)
+#   lst = np.asarray(lst)
+#   with open(filename + '_rms_pickle', 'wb') as f:
+#       pickle.dump(lst, f)
 
 
 def eval(filename, centers):
@@ -253,7 +262,7 @@ if __name__ == '__main__':
     parser.add_argument('file', metavar='FILE', type=str, help='Name of fits file to be fitted.')
     parser.add_argument('nr_true_centers', metavar="NR_TRUE_CENTERS", type=int,
                         help="Number of true centers in the dataset to be analyzed. \
-			This is needed for the evaluation step.")
+            This is needed for the evaluation step.")
     parser.add_argument('--vote', action='store_true', help='If this argument is present, the "vote" procedure will occur.')
     parser.add_argument('--blob', action='store_true', help='If this argument is present, the "blob" procedure will occur.')
     parser.add_argument('--eval', action='store_true', help='If this argument is present, the "eval" procedure will occur.')
@@ -266,7 +275,7 @@ if __name__ == '__main__':
     filename = args.file.split('.')[-2]
     try:
         os.mkdir('../output/%s' % filename)
-    except FileExistsError:
+    except:
         pass
 
     if (args.vote or args.full):
