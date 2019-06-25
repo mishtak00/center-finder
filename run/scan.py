@@ -46,14 +46,19 @@ def vote(filename):
 
         # output to .fits
         galaxies = np.asarray(sky.data_list, dtype=np.float64)
-        n_observed = np.asarray(sky.grid.flatten(), dtype=int)
+        n_observed = np.asarray(sky.observed_grid.flatten(), dtype=int)
         columns = []
         columns.append(fits.Column(name='RA', format='E', array=galaxies[0]))
         columns.append(fits.Column(name='DEC', format='E', array=galaxies[1]))
         columns.append(fits.Column(name='Z', format='E', array=galaxies[2]))
         columns.append(fits.Column(name='N_OBSERVED', format='E', array=n_observed))
         new_hdus = fits.BinTableHDU.from_columns(columns)
-        new_hdus.writeto('{}.fits'.format(path))
+        path += '.fits'
+        try:
+            new_hdus.writeto(path)
+        except OSError:
+            os.remove(path)
+            new_hdus.writeto(path)
 
 
 def blob(filename):
@@ -71,10 +76,10 @@ def blob(filename):
         centers = np.asarray(sky.centers, dtype=np.float64)
 
         # This gets the voters per each center found
-        n_observed = np.asarray(sky.grid, dtype=int)
+        n_observed = np.asarray(sky.observed, dtype=int)
 
         # This gets the expected voters per each center found
-        n_expected = np.asarray(sky.exp, dtype=np.float64)
+        n_expected = np.asarray(sky.expected, dtype=np.float64)
 
         # This puts data in celestial coordinates
         centers = util.cartesian_to_sky(centers.T)
@@ -83,15 +88,41 @@ def blob(filename):
         filename_new = file + '_blob'
 
         # Output to .pkl
-        util.pickle_sky(sky, filename_new)
+        # util.pickle_sky(sky, filename_new)
 
         # Output to .fits
         write_fits(filename_new, centers, n_observed, n_expected)
 
 
+def test_vote(filename, radius=108):
+
+    sky = s.Sky(util.load_data(filename), 5)
+    sky.vote(radius=radius)
+    sky.vote_2d_1d()
+    path = filename.split('.')[-2].split('/')[-1]
+    path = '../output/{}/'.format(path) + path + '_' + str(radius)
+    util.pickle_sky(sky, path)
+
+    # output to .fits
+    galaxies = np.asarray(sky.data_list, dtype=np.float64)
+    n_observed = np.asarray(sky.observed_grid.flatten(), dtype=int)
+    columns = []
+    columns.append(fits.Column(name='RA', format='E', array=galaxies[0]))
+    columns.append(fits.Column(name='DEC', format='E', array=galaxies[1]))
+    columns.append(fits.Column(name='Z', format='E', array=galaxies[2]))
+    columns.append(fits.Column(name='N_OBSERVED', format='E', array=n_observed))
+    new_hdus = fits.BinTableHDU.from_columns(columns)
+    path += '.fits'
+    try:
+        new_hdus.writeto(path)
+    except OSError:
+        os.remove(path)
+        new_hdus.writeto(path)
+
+
 def test_blob(filename, radius=108):
 
-        # get the voted result
+    # get the voted result
     file = filename + '_' + str(radius)
     sky = util.unpickle_sky(file)
 
@@ -102,10 +133,10 @@ def test_blob(filename, radius=108):
     centers = np.asarray(sky.centers, dtype=np.float64)
 
     # This gets the voters per each center found
-    n_observed = np.asarray(sky.grid, dtype=int)
+    n_observed = np.asarray(sky.centers_n_observed, dtype=int)
 
     # This gets the expected voters per each center found
-    n_expected = np.asarray(sky.exp, dtype=np.float64)
+    n_expected = np.asarray(sky.centers_n_expected, dtype=np.float64)
 
     # This puts data in celestial coordinates
     centers = util.cartesian_to_sky(centers.T)
@@ -114,10 +145,17 @@ def test_blob(filename, radius=108):
     filename_new = file + '_blob'
 
     # Output to .pkl
-    util.pickle_sky(sky, filename_new)
+    # util.pickle_sky(sky, filename_new)
 
     # Output to .fits
     write_fits(filename_new, centers, n_observed, n_expected)
+
+    # Output n_exp vs n_obs
+    plt.title('N_observed vs. N_expected')
+    plt.xlabel('N_obs')
+    plt.ylabel('N_exp')
+    plt.scatter(n_observed, n_expected, s=7)
+    plt.savefig(file + '.png')
 
 
 # def test_blob(sky, radius, rms_factor=1, filename=None):
@@ -269,6 +307,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot', action='store_true', help='If this argument is present, the "plot" procedure will occur.')
     parser.add_argument('--full', action='store_true', help='If this argument is present, all of the procedures will occur.')
     parser.add_argument('--test_blob', action='store_true', help='If this argument is present, the blob testing procedures will occur.')
+    parser.add_argument('--test_vote', action='store_true', help='If this argument is present, the vote testing procedures will occur.')
     args = parser.parse_args()
 
     # making the specific output directory inside the general output directory
@@ -287,11 +326,14 @@ if __name__ == '__main__':
     if (args.test_blob):
         test_blob('../output/%s/%s' % (filename, filename))
 
+    if (args.test_vote):
+        test_vote('../data/%s' % args.file)
+
     if (args.eval or args.full):
         eval(filename, args.nr_true_centers)
 
     if (args.plot or args.full):
         # this gets 1 thru 5 of the filename split because it assumes
-        # the filename is something like cf_set_i_mock_j_etc.etc
+        # the filename is of the form cf_set_i_mock_j_etc.etc
         dataset = ' '.join(filename.split('_')[1:5])
         plot(dataset, filename)
