@@ -7,14 +7,12 @@ from matplotlib import rc
 from astropy.io import fits
 import pickle
 from scipy.signal import fftconvolve
+
 from . import sky
-
-sys.modules['sky'] = sky
-
 
 
 def load_data(filename: str) -> np.ndarray:
-    
+
     if filename.split('.')[-1] == 'fits':
         hdul = fits.open(filename)
         ra = hdul[1].data['ra']
@@ -80,7 +78,7 @@ def cartesian_to_sky(points: np.ndarray):
     :return: ndarray in shape (3, *)
     """
     if len(points) < 3:
-        raise ValueError('Input dimension should be > 3; get {:d}'.format(len(points)))
+        raise ValueError('Input dimensions should be >= 3, got {:d}'.format(len(points)))
     x, y, z = points[:3]
     # print('\nx dtype={}\n'.format(x.dtype), '\ny dtype={}\n'.format(y.dtype), '\nz dtype={}\n'.format(z.dtype))
     s = np.sqrt(x ** 2 + y ** 2)
@@ -114,12 +112,12 @@ def distance_kernel(radius: [float, int], bin_space: [float, int], error=-1):
     if error == -1:
         error = bin_space / 2
     outer_bins = int((radius + error * 5) / bin_space)
-    outer_r =int((radius + error) / bin_space)
+    outer_r = int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
     xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
     window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
-    center = [int(outer_bins) -1, int(outer_bins)-1, int(outer_bins)-1]
+    center = [int(outer_bins) - 1, int(outer_bins) - 1, int(outer_bins) - 1]
     dist = np.asarray(distance(center, window))
     dist[dist < outer_bins] = -1
     dist[dist > 0] = 0
@@ -140,12 +138,12 @@ def kernel(radius: [float, int], bin_space: [float, int], error=-1):
     if error == -1:
         error = bin_space
     outer_bins = int((radius + error * 5) / bin_space)
-    outer_r =int((radius + error) / bin_space)
+    outer_r = int((radius + error) / bin_space)
     inner_bins = int((radius - error) / bin_space)
     xyz = [np.arange(outer_bins * 2 - 1) for i in range(3)]
     window = np.vstack(np.meshgrid(*xyz)).reshape(3, -1)
 
-    center = [int(outer_bins) -1, int(outer_bins)-1, int(outer_bins)-1]
+    center = [int(outer_bins) - 1, int(outer_bins) - 1, int(outer_bins) - 1]
     dist = np.asarray(distance(center, window))
     dist[dist < 2] = np.inf
     dist[dist < inner_bins] = 0
@@ -239,8 +237,6 @@ def unpickle_sky(filename):
     return sky_
 
 
-
-
 def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None, c_generated=None):
     if data.ndim != 3:
         raise ValueError('Grid to plot should be 3-dimensional')
@@ -269,12 +265,12 @@ def plot_cross_sec(data: np.ndarray, thres_grid: np.ndarray = None, c_found=None
     vmax *= 1.2
 
     f, axarr = plt.subplots(2, 3)
-    im = axarr[0, 0].imshow(data[:, :, section*3], vmin=vmin, vmax=vmax)
-    im = axarr[1, 0].imshow(data1[:, :, section*3], vmin=vmin, vmax=vmax)
-    im = axarr[0, 1].imshow(data[:, :, section*4], vmin=vmin, vmax=vmax)
-    im = axarr[1, 1].imshow(data1[:, :, section*4], vmin=vmin, vmax=vmax)
-    im = axarr[0, 2].imshow(data[:, :, section*5], vmin=vmin, vmax=vmax)
-    im = axarr[1, 2].imshow(data1[:, :, section*5], vmin=vmin, vmax=vmax)
+    im = axarr[0, 0].imshow(data[:, :, section * 3], vmin=vmin, vmax=vmax)
+    im = axarr[1, 0].imshow(data1[:, :, section * 3], vmin=vmin, vmax=vmax)
+    im = axarr[0, 1].imshow(data[:, :, section * 4], vmin=vmin, vmax=vmax)
+    im = axarr[1, 1].imshow(data1[:, :, section * 4], vmin=vmin, vmax=vmax)
+    im = axarr[0, 2].imshow(data[:, :, section * 5], vmin=vmin, vmax=vmax)
+    im = axarr[1, 2].imshow(data1[:, :, section * 5], vmin=vmin, vmax=vmax)
     #cols = ['N-obs', 'N-exp', 'N-obs/N-exp']
     #f.colorbar(im, ax=axarr.ravel().tolist())
     # for ax, col in zip(axarr[0], cols):
